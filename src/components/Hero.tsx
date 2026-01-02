@@ -1,121 +1,107 @@
-import { FileText, Download, GitBranch, Box } from 'lucide-react';
-import FloatingCard from './FloatingCard';
 
-export default function Hero() {
+import { Database, Share2, Sparkles, GitBranch, FileDown } from 'lucide-react';
+import { FloatingCard } from './FloatingCard';
+
+export function Hero() {
   return (
-    <section className="relative min-h-[90vh] flex items-center justify-center px-6 py-20 overflow-hidden">
-      <div className="max-w-4xl mx-auto text-center relative z-10">
-        <h1 className="text-6xl md:text-7xl font-bold mb-6 leading-tight">
-          <span className="text-gray-900">Understand your database</span>
-          <br />
-          <span className="text-gray-400">visually, clearly, and always up to date</span>
+    <div className="relative flex min-h-[calc(100vh-4rem)] w-full items-center justify-center overflow-hidden px-4 py-20">
+
+      {/* Background decoration - radial gradient glow */}
+      <div className="absolute left-1/2 top-1/2 -z-10 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-50/50 blur-3xl" />
+
+      <div className="relative z-10 mx-auto max-w-5xl text-center">
+        {/* Floating Cards - Desktop Only positions */}
+        <div className="hidden lg:block">
+          {/* Top Left: Schema Explanation */}
+          <div className="absolute left-0 top-0 -translate-x-1/4 -translate-y-1/4">
+            <FloatingCard
+              icon={Sparkles}
+              title="Schema Explanation"
+              caption="AI-generated explanations"
+              className="animate-float"
+            >
+              <div className="w-56 space-y-2">
+                <div className="h-2 w-full rounded bg-gray-100" />
+                <div className="h-2 w-3/4 rounded bg-gray-100" />
+                <div className="h-2 w-5/6 rounded bg-gray-100" />
+              </div>
+            </FloatingCard>
+          </div>
+
+          {/* Top Right: ER Diagram Preview */}
+          <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4">
+            <FloatingCard
+              icon={Share2}
+              title="ER Diagram Preview"
+              caption="Auto-generated diagrams"
+              className="animate-float-delayed"
+            >
+              <div className="flex w-56 justify-center gap-2 p-2">
+                <div className="flex flex-col gap-2">
+                  <div className="h-8 w-16 rounded border border-indigo-200 bg-indigo-50" />
+                  <div className="h-8 w-16 rounded border border-indigo-200 bg-indigo-50" />
+                </div>
+                <div className="mt-4 h-8 w-16 rounded border border-indigo-200 bg-indigo-50" />
+              </div>
+            </FloatingCard>
+          </div>
+
+          {/* Bottom Left: Change Detection */}
+          <div className="absolute bottom-0 left-0 -translate-x-1/4 translate-y-1/4">
+            <FloatingCard
+              icon={GitBranch}
+              title="Change Detection"
+              caption="Always in sync"
+              className="animate-float-delayed"
+            >
+              <div className="w-56 space-y-2">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span className="flex h-1.5 w-1.5 rounded-full bg-green-500" />
+                  <span>Added 'users' table</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span className="flex h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                  <span>Modified 'posts'</span>
+                </div>
+              </div>
+            </FloatingCard>
+          </div>
+
+          {/* Bottom Right: Export Options */}
+          <div className="absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4">
+            <FloatingCard
+              icon={FileDown}
+              title="Export Options"
+              caption="Share anywhere"
+              className="animate-float"
+            >
+              <div className="flex w-56 gap-2">
+                <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">PNG</span>
+                <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">SVG</span>
+                <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">MD</span>
+              </div>
+            </FloatingCard>
+          </div>
+        </div>
+
+        {/* Main Hero Content */}
+        <h1 className="mb-6 text-5xl font-bold tracking-tight text-gray-900 sm:text-7xl">
+          Understand your database
+          <span className="block font-medium text-gray-500">visually and clearly</span>
         </h1>
 
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Auto-generate ER diagrams, explain schemas in plain English, and keep
-          documentation in sync with your database.
+        <p className="mx-auto mb-10 max-w-2xl text-lg text-gray-500">
+          Generate ER diagrams, explain schemas in plain English, and keep documentation automatically in sync.
         </p>
 
-        <div className="flex items-center justify-center gap-4 flex-wrap">
-          <button className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium text-lg transition-colors shadow-sm">
-            Connect your database
-          </button>
-          <button className="text-gray-700 hover:text-gray-900 font-medium text-lg transition-colors">
-            View example diagram →
+        <div className="flex justify-center gap-4">
+          <button className="flex items-center gap-2 rounded-full bg-indigo-600 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-indigo-600/20 transition-all hover:scale-105 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2">
+            <Database className="h-5 w-5" />
+            Paste Schema Code
           </button>
         </div>
+
       </div>
-
-      <FloatingCard
-        className="hidden lg:block top-32 left-12 w-72 rotate-[-3deg]"
-        rotation="hover:rotate-[-2deg]"
-      >
-        <div className="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-200 font-handwriting">
-          <div className="w-3 h-3 bg-red-500 rounded-full mx-auto mb-3"></div>
-          <p className="text-sm text-gray-700 italic leading-relaxed">
-            "This table stores completed customer orders and links users to payments."
-          </p>
-        </div>
-      </FloatingCard>
-
-      <FloatingCard
-        className="hidden lg:block top-24 right-12 w-80 rotate-[2deg]"
-        rotation="hover:rotate-[1deg]"
-      >
-        <div className="space-y-3">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Auto-generated ER diagram
-            </span>
-          </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 bg-white border-2 border-blue-500 rounded p-2 text-center">
-                <Box className="w-4 h-4 mx-auto mb-1 text-blue-600" />
-                <div className="text-xs font-semibold">users</div>
-              </div>
-              <div className="text-gray-400">→</div>
-              <div className="flex-1 bg-white border-2 border-green-500 rounded p-2 text-center">
-                <Box className="w-4 h-4 mx-auto mb-1 text-green-600" />
-                <div className="text-xs font-semibold">orders</div>
-              </div>
-              <div className="text-gray-400">→</div>
-              <div className="flex-1 bg-white border-2 border-purple-500 rounded p-2 text-center">
-                <Box className="w-4 h-4 mx-auto mb-1 text-purple-600" />
-                <div className="text-xs font-semibold">payments</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </FloatingCard>
-
-      <FloatingCard
-        className="hidden lg:block bottom-32 left-20 w-72 rotate-[2deg]"
-        rotation="hover:rotate-[1deg]"
-      >
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <GitBranch className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-semibold text-gray-900">Schema changes detected</span>
-          </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-gray-700">New column: <code className="text-xs bg-gray-100 px-1 rounded">status</code></span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              <span className="text-gray-700">Removed table: <code className="text-xs bg-gray-100 px-1 rounded">old_logs</code></span>
-            </div>
-          </div>
-        </div>
-      </FloatingCard>
-
-      <FloatingCard
-        className="hidden lg:block bottom-36 right-24 w-64 rotate-[-2deg]"
-        rotation="hover:rotate-[-1deg]"
-      >
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 mb-3">
-            <Download className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-semibold text-gray-900">Export documentation</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 text-center cursor-pointer transition-colors">
-              <FileText className="w-5 h-5 mx-auto mb-1 text-gray-600" />
-              <div className="text-xs font-medium text-gray-700">PNG</div>
-            </div>
-            <div className="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 text-center cursor-pointer transition-colors">
-              <FileText className="w-5 h-5 mx-auto mb-1 text-gray-600" />
-              <div className="text-xs font-medium text-gray-700">SVG</div>
-            </div>
-            <div className="bg-gray-50 hover:bg-gray-100 rounded-lg p-3 text-center cursor-pointer transition-colors">
-              <FileText className="w-5 h-5 mx-auto mb-1 text-gray-600" />
-              <div className="text-xs font-medium text-gray-700">MD</div>
-            </div>
-          </div>
-        </div>
-      </FloatingCard>
-    </section>
+    </div>
   );
 }
