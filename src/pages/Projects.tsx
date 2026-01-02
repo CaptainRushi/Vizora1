@@ -57,25 +57,35 @@ export function Projects() {
         } catch (err: any) {
             console.error("Create project error:", err);
             const msg = err.response?.data?.error || err.message || "Unknown error";
-            alert(`Failed to create project: ${msg}`);
+
+            if (err.response?.status === 403 && msg.includes("limit")) {
+                if (confirm("Project Limit Reached!\n\nUpgrade to Pro to manage up to 5 schemas and unlock exports, AI explanations, and version history.\n\nWould you like to view plans?")) {
+                    navigate('/billing');
+                }
+            } else {
+                alert(`Failed to create project: ${msg}`);
+            }
         } finally {
             setCreating(false);
         }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Are you sure? This will delete all versions and data for this project.")) return;
+        if (!confirm("Are you sure? This will delete all versions, documentation, and metadata for this project. This action is irreversible.")) return;
         try {
-            const { error } = await supabase.from('projects').delete().eq('id', id);
-            if (error) throw error;
+            console.log(`[Projects] Requesting deletion for project: ${id}`);
+            await api.deleteProject(id);
 
             if (id === currentProjectId) {
+                // If we deleted the active project, clear the session area
                 navigate('/projects');
+                window.location.reload(); // Force refresh to clear project context
             } else {
                 fetchProjects();
             }
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            console.error("[Projects] Delete failed:", err);
+            alert(`Failed to delete project: ${err.response?.data?.error || err.message}`);
         }
     };
 
@@ -94,7 +104,7 @@ export function Projects() {
 
             {/* Create Section */}
             <div className="relative overflow-hidden rounded-3xl border-2 border-indigo-100 bg-white p-8 shadow-2xl shadow-indigo-100/50">
-                <div className="absolute right-0 top-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-indigo-50 opacity-50 blur-3xl" />
+                <div className="absolute right-0 top-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-indigo-50 opacity-50 blur-3xl pointer-events-none" />
 
                 <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                     <Plus className="h-5 w-5 text-indigo-600" />
@@ -208,18 +218,16 @@ export function Projects() {
                                         </div>
                                     </div>
 
-                                    {!isActive && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDelete(p.id);
-                                            }}
-                                            className="absolute bottom-6 right-6 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                            title="Delete Project"
-                                        >
-                                            <Trash2 className="h-5 w-5" />
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDelete(p.id);
+                                        }}
+                                        className="absolute bottom-6 right-6 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                        title="Delete Project"
+                                    >
+                                        <Trash2 className="h-5 w-5" />
+                                    </button>
                                 </div>
                             );
                         })}

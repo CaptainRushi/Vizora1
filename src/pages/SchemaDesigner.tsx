@@ -23,7 +23,10 @@ import {
     Save,
     RefreshCw,
     Key,
-    MoreVertical
+    MoreVertical,
+    AlertCircle,
+    Copy,
+    Check
 } from 'lucide-react';
 import { useProject } from '../hooks/useProject';
 import { ToolRail, CanvasTool } from '../components/schema-designer/ToolRail';
@@ -31,6 +34,9 @@ import { PropertiesPanel } from '../components/schema-designer/PropertiesPanel';
 import { UnifiedSchema, UnifiedColumn, UnifiedTable } from '../lib/schema-types';
 import { supabase } from '../lib/supabase';
 import { generateSql, generatePrisma, generateDrizzle, type NormalizedSchema } from '../lib/generators';
+import { api } from '../lib/api';
+import { BillingGate } from '../components/BillingGate';
+
 
 // --- CUSTOM NODE COMPONENT ---
 
@@ -137,6 +143,9 @@ function SchemaDesignerContent() {
     const [generatedCode, setGeneratedCode] = useState('');
     const [exportFormat] = useState<'sql' | 'prisma' | 'drizzle'>('sql');
     const [layoutRegistry, setLayoutRegistry] = useState<Record<string, { x: number; y: number }>>({});
+    const [billing, setBilling] = useState<any>(null);
+    const [billingLoading, setBillingLoading] = useState(true);
+    const [copied, setCopied] = useState(false);
 
     // Mouse Tracking
     const mouseDownPos = useRef<{ x: number, y: number } | null>(null);
@@ -183,7 +192,18 @@ function SchemaDesignerContent() {
         } catch (err) { console.error("Load Error", err); }
     }, [projectId, setEdges]);
 
-    useEffect(() => { loadSchema(); }, [loadSchema]);
+    useEffect(() => {
+        if (projectId) {
+            loadSchema();
+            api.getBilling(projectId)
+                .then(setBilling)
+                .catch(err => console.error("Billing fetch error:", err))
+                .finally(() => setBillingLoading(false));
+        } else {
+            // No project - still set loading to false to show sandbox
+            setBillingLoading(false);
+        }
+    }, [loadSchema, projectId]);
 
     // --- ACTION HANDLERS ---
 
@@ -429,8 +449,27 @@ function SchemaDesignerContent() {
         finally { setIsSaving(false); }
     };
 
+    const handleCopy = () => {
+        navigator.clipboard.writeText(generatedCode);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    if (billingLoading) return null;
+
+    if (billing && !billing.plan.designer_enabled) {
+        return (
+            <div className="h-[calc(100vh-8rem)] flex items-center justify-center p-12 overflow-hidden">
+                <BillingGate
+                    featureName="Schema Designer & SQL Generator"
+                    description="The visual designer allows you to build schemas graphically and instantly generate SQL, Prisma, or Drizzle code. Upgrade to Pro to unlock."
+                />
+            </div>
+        );
+    }
+
     return (
-        <div className="flex bg-slate-50 h-[calc(100vh-2rem)] w-full overflow-hidden">
+        <div className="relative h-[calc(100vh-2rem)] w-full overflow-hidden bg-[#fafafa]">
             <ToolRail
                 activeTool={activeTool}
                 setActiveTool={setActiveTool}
@@ -446,14 +485,24 @@ function SchemaDesignerContent() {
             />
 
             <div
-                className="flex-1 relative h-full bg-[#fafafa]"
+                className="w-full h-full relative"
                 style={{ cursor }}
             >
                 <div className="absolute top-4 right-6 z-10 flex gap-2">
-                    <button onClick={saveAndGenerate} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg shadow-sm text-xs font-bold text-slate-700 hover:bg-slate-50">
+                    <button
+                        onClick={saveAndGenerate}
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg shadow-sm text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
                         {isSaving ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                        {projectId ? 'Save & Gen' : 'Generate'}
+                        {projectId ? 'Save & Gen' : 'Generate Code'}
                     </button>
+                    {!projectId && (
+                        <div className="bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg text-[10px] font-black text-amber-700 uppercase flex items-center gap-2">
+                            <AlertCircle className="h-3 w-3" />
+                            Sandbox Mode: Select a project to save
+                        </div>
+                    )}
                 </div>
 
                 <ReactFlow
@@ -507,8 +556,19 @@ function SchemaDesignerContent() {
                 <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-20 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full h-full max-w-4xl flex flex-col overflow-hidden animate-in zoom-in-95">
                         <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                            <h3 className="font-bold text-slate-800">Generated Code ({exportFormat})</h3>
-                            <button onClick={() => setIsCodeViewerOpen(false)}><span className="text-2xl">&times;</span></button>
+                            <div className="flex items-center gap-4">
+                                <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs">Generated {exportFormat}</h3>
+                                <button
+                                    onClick={handleCopy}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${copied ? 'bg-green-100 text-green-700' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                    {copied ? 'Copied' : 'Copy Code'}
+                                </button>
+                            </div>
+                            <button className="text-slate-400 hover:text-slate-600 transition-colors" onClick={() => setIsCodeViewerOpen(false)}>
+                                <span className="text-2xl font-light">&times;</span>
+                            </button>
                         </div>
                         <pre className="flex-1 p-6 overflow-auto font-mono text-xs bg-slate-900 text-indigo-100">{generatedCode}</pre>
                     </div>

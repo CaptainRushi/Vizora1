@@ -239,12 +239,37 @@ curl -X POST http://localhost:3001/projects \
   }'
 ```
 
-### 3. Ingest Schema (requires project_id from step 2)
+**Supported Schema Types:**
+- `sql` - Raw SQL DDL statements
+- `prisma` - Prisma schema definitions
+- `drizzle` - Drizzle ORM schema definitions
+
+### 3. Ingest Schema Examples
+
+#### SQL Schema (requires project_id from step 2)
 ```bash
 curl -X POST http://localhost:3001/projects/{PROJECT_ID}/schema \
   -H "Content-Type: application/json" \
   -d '{
     "raw_schema": "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255));"
+  }'
+```
+
+#### Prisma Schema
+```bash
+curl -X POST http://localhost:3001/projects/{PROJECT_ID}/schema \
+  -H "Content-Type: application/json" \
+  -d '{
+    "raw_schema": "model User {\n  id Int @id\n  name String\n}"
+  }'
+```
+
+#### Drizzle Schema
+```bash
+curl -X POST http://localhost:3001/projects/{PROJECT_ID}/schema \
+  -H "Content-Type: application/json" \
+  -d '{
+    "raw_schema": "export const users = pgTable(\"users\", {\n  id: integer(\"id\").primaryKey(),\n  name: text(\"name\").notNull()\n});"
   }'
 ```
 

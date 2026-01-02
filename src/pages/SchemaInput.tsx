@@ -42,11 +42,15 @@ export function SchemaInput() {
             }
         } catch (err: any) {
             console.error('[SchemaInput] Error:', err);
-            console.error('[SchemaInput] Error Response:', err.response);
-            console.error('[SchemaInput] Error Response Data:', err.response?.data);
-            // Extract detailed error message from axios error
-            const errorMessage = err.response?.data?.error || err.message || 'Failed to parse schema';
-            setError(errorMessage);
+            const msg = err.response?.data?.error || err.message || 'Failed to parse schema';
+
+            if (err.response?.status === 403 && msg.includes("limit")) {
+                if (confirm(`Version Limit Reached!\n\n${err.response.data.message}\n\nWould you like to upgrade to Pro for more history?`)) {
+                    navigate('/billing');
+                }
+            } else {
+                setError(msg);
+            }
         } finally {
             setLoading(false);
         }

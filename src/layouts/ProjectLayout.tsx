@@ -1,7 +1,7 @@
-import { ReactNode, useEffect } from 'react';
+import { useState, ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../hooks/useProject';
-import { ProjectSidebar } from '../components/ProjectSidebar';
+import { Sidebar } from '../components/Sidebar';
 
 interface ProjectLayoutProps {
     children: ReactNode;
@@ -15,6 +15,8 @@ interface ProjectLayoutProps {
 export function ProjectLayout({ children }: ProjectLayoutProps) {
     const { projectId, loading } = useProject();
     const navigate = useNavigate();
+
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     useEffect(() => {
         if (!loading && !projectId) {
@@ -42,12 +44,17 @@ export function ProjectLayout({ children }: ProjectLayoutProps) {
 
     // Project exists - render the feature
     return (
-        <div className="flex min-h-screen">
-            <ProjectSidebar />
+        <div className="flex flex-col min-h-screen bg-gray-50">
+            {/* macOS Window Safe Bar */}
+            <div className="h-8 w-full shrink-0 z-50 select-none pointer-events-none" />
 
-            {/* Content Area - Full Bleed for Infinite Canvas */}
-            <div className="flex-1 pl-[240px] w-full relative">
-                {children}
+            <div className="flex flex-1 relative">
+                <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+                {/* Content Area - Full Bleed for Infinite Canvas */}
+                <div className="flex-1 lg:pl-[270px] w-full relative">
+                    {children}
+                </div>
             </div>
         </div>
     );

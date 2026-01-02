@@ -11,7 +11,9 @@ import {
     History,
     GitBranch,
     ChevronLeft,
-    Database
+    Database,
+    LayoutDashboard,
+    Users
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarItem } from './SidebarItem';
@@ -80,7 +82,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
             <aside
                 className={`
-                    fixed inset-y-0 left-0 z-30 w-[270px] flex flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out
+                    fixed top-8 bottom-0 left-0 z-30 w-[270px] flex flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out
                     ${isOpen ? 'translate-x-0' : '-translate-x-full'}
                     lg:translate-x-0
                 `}
@@ -90,7 +92,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     /* Global Brand */
                     <div className="flex h-20 items-center justify-between px-6 shrink-0 border-b border-gray-100">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 shadow-sm">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900 shadow-sm shrink-0">
                                 <div className="grid grid-cols-2 gap-1 px-1.5">
                                     <div className="h-1 w-1 rounded-full bg-white opacity-40" />
                                     <div className="h-1 w-1 rounded-full bg-white" />
@@ -98,9 +100,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     <div className="h-1 w-1 rounded-full bg-white opacity-40" />
                                 </div>
                             </div>
-                            <div>
-                                <h1 className="text-sm font-bold text-gray-900 tracking-tight leading-none">Vizora</h1>
-                                <p className="mt-1 text-[10px] text-gray-400 font-medium">Schema Intelligence</p>
+                            <div className="flex flex-col justify-center">
+                                <h1 className="text-sm font-bold text-gray-900 tracking-tight leading-tight">Vizora</h1>
+                                <p className="text-[10px] text-gray-400 font-medium leading-tight">Schema Intelligence</p>
                             </div>
                         </div>
                         <button
@@ -178,8 +180,27 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     ) : (
                         /* PROJECT-SCOPED NAVIGATION - Project Selected */
                         <>
-                            {/* Core 4 Features */}
+                            {/* Overview Section */}
                             <div className="space-y-1">
+                                <div className="px-3 mb-2">
+                                    <span className="text-[10px] font-medium text-gray-400 uppercase tracking-widest">Overview</span>
+                                </div>
+                                <SidebarItem
+                                    icon={LayoutDashboard}
+                                    label="Dashboard"
+                                    active={isActive(getWorkspacePath('overview'))}
+                                    onClick={() => handleNavigation(getWorkspacePath('overview'))}
+                                />
+                                <SidebarItem
+                                    icon={Users}
+                                    label="Team"
+                                    active={isActive(getWorkspacePath('team'))}
+                                    onClick={() => handleNavigation(getWorkspacePath('team'))}
+                                />
+                            </div>
+
+                            {/* Core 4 Features */}
+                            <div className="space-y-1 pt-4 border-t border-gray-100">
                                 <div className="px-3 mb-2">
                                     <span className="text-[10px] font-medium text-gray-400 uppercase tracking-widest">Core Features</span>
                                 </div>
@@ -245,7 +266,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <div className="p-6 border-t border-gray-100 flex items-center justify-center opacity-30 select-none pointer-events-none shrink-0">
                     <span className="text-[10px] font-medium text-gray-400 tracking-widest">VIZORA v1.0</span>
                 </div>
-            </aside>
+            </aside >
         </>
     );
 }

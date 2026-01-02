@@ -11,18 +11,103 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #e5e7eb;
     border-radius: 10px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #d1d5db;
   }
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-15px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed-1 {
+  animation: float 7s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+.animate-float-delayed-2 {
+  animation: float 8s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+.animate-float-delayed-3 {
+  animation: float 9s ease-in-out infinite;
+  animation-delay: 0.5s;
+}
+
+/* --- VIZORA LOGO ANIMATIONS --- */
+
+@keyframes pulse-to-faint {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+
+  40%,
+  60% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-to-solid {
+
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+
+  40%,
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+.animate-pulse-tl {
+  animation: pulse-to-faint 2s ease-in-out infinite;
+}
+
+.animate-pulse-br {
+  animation: pulse-to-faint 2s ease-in-out infinite;
+}
+
+.animate-pulse-tr {
+  animation: pulse-to-solid 2s ease-in-out infinite;
+}
+
+.animate-pulse-bl {
+  animation: pulse-to-solid 2s ease-in-out infinite;
 }

@@ -535,27 +535,6 @@ export function parsePrisma(prisma: string): ParsingResult {
             }
         }
 
-        // Infer relationships from column names (e.g., userId -> User table)
-        for (const [tableName, table] of Object.entries(result.schema.tables)) {
-            for (const [colName, col] of Object.entries(table.columns)) {
-                // Check if column name suggests a foreign key
-                if (colName.endsWith('Id') && colName !== 'id') {
-                    // Extract referenced table name (e.g., userId -> user)
-                    let refTable = colName.replace(/Id$/, '').toLowerCase();
-
-                    // Check if referenced table exists
-                    if (result.schema.tables[refTable]) {
-                        col.foreign_key = `${refTable}.id`;
-                        table.relations.push({
-                            type: 'many_to_one',
-                            from: `${tableName}.${colName}`,
-                            to: `${refTable}.id`
-                        });
-                    }
-                }
-            }
-        }
-
         result.stats.table_count = Object.keys(result.schema.tables).length;
         result.stats.column_count = Object.values(result.schema.tables).reduce((acc, t) => acc + Object.keys(t.columns).length, 0);
 
@@ -567,127 +546,21 @@ export function parsePrisma(prisma: string): ParsingResult {
     return result;
 }
 
-// WORKING parseDrizzle function - REPLACE lines 549-633 in parser.ts with this
-
 export function parseDrizzle(drizzle: string): ParsingResult {
     const result: ParsingResult = {
         status: 'success',
-        input_type: 'prisma',
+        input_type: 'prisma', // Using 'prisma' as generic ORM type
         errors: [],
         warnings: [],
         schema: { tables: {} },
         stats: { table_count: 0, column_count: 0, relation_count: 0 }
     };
 
-    try {
-        console.log('[parseDrizzle] ===== STARTING PARSE =====');
-        console.log('[parseDrizzle] Input length:', drizzle.length);
-        console.log('[parseDrizzle] First 200 chars:', drizzle.substring(0, 200));
-
-        const lines = drizzle.split('\n');
-        console.log('[parseDrizzle] Total lines:', lines.length);
-        let currentTable: string | null = null;
-        let braceDepth = 0;
-        let inTable = false;
-
-        for (const line of lines) {
-            const tableMatch = line.match(/export\s+const\s+\w+\s*=\s*pgTable\s*\(\s*["'](\w+)["']\s*,\s*\{/);
-            if (tableMatch) {
-                currentTable = tableMatch[1] || null;
-                inTable = true;
-                braceDepth = 1;
-                if (currentTable) {
-                    result.schema.tables[currentTable] = {
-                        columns: {},
-                        indexes: [],
-                        relations: []
-                    };
-                    console.log(`[parseDrizzle] Found table: ${currentTable}`);
-                }
-                continue;
-            }
-
-            if (inTable && currentTable) {
-                for (const char of line) {
-                    if (char === '{') braceDepth++;
-                    if (char === '}') braceDepth--;
-                }
-
-                if (braceDepth > 0) {
-                    const trimmed = line.trim();
-                    const colMatch = trimmed.match(/^(\w+)\s*:\s*(\w+)\s*\(/);
-
-                    if (colMatch) {
-                        const colName = colMatch[1];
-                        const colType = colMatch[2];
-
-                        console.log(`[parseDrizzle] Column: ${currentTable}.${colName}`);
-
-                        let sqlType = 'text';
-                        if (colType === 'uuid') sqlType = 'uuid';
-                        else if (colType === 'integer' || colType === 'int') sqlType = 'integer';
-                        else if (colType === 'text' || colType === 'varchar') sqlType = 'text';
-                        else if (colType === 'timestamp') sqlType = 'timestamp';
-                        else if (colType === 'boolean') sqlType = 'boolean';
-                        else if (colType === 'serial') sqlType = 'serial';
-
-                        const isPk = trimmed.includes('.primaryKey()');
-                        const isUnique = trimmed.includes('.unique()');
-                        const notNull = trimmed.includes('.notNull()');
-
-                        if (currentTable && colName) {
-                            result.schema.tables[currentTable].columns[colName] = {
-                                type: sqlType,
-                                nullable: !notNull && !isPk,
-                                primary: isPk,
-                                unique: isUnique
-                            };
-                        }
-                    }
-                } else {
-                    inTable = false;
-                    currentTable = null;
-                }
-            }
-        }
-
-        const foundTables = Object.keys(result.schema.tables).length > 0;
-
-        if (!foundTables) {
+    try {`n        console.log('[parseDrizzle] Input length:', drizzle.length);`n        const lines = drizzle.split('\n');`n        let currentTable = null;`n        let braceDepth = 0;`n        let inTable = false;`n        for (const line of lines) {`n            const tableMatch = line.match(/export\\s+const\\s+\\w+\\s*=\\s*pgTable\\s*\\(\\s*["\u0027](\\w+)["\u0027]\\s*,\\s*\\{/);`n            if (tableMatch) {`n                currentTable = tableMatch[1];`n                inTable = true;`n                braceDepth = 1;`n                result.schema.tables[currentTable] = { columns: {}, indexes: [], relations: [] };`n                console.log(`[parseDrizzle] Found table: ${currentTable}`);`n                continue;`n            }`n            if (inTable && currentTable) {`n                for (const char of line) {`n                    if (char === '{'') braceDepth++;`n                    if (char === '}') braceDepth--;`n                }`n                if (braceDepth > 0) {`n                    const trimmed = line.trim();`n                    const colMatch = trimmed.match(/^(\\w+)\\s*:\\s*(\\w+)\\s*\\(/);`n                    if (colMatch) {`n                        const colName = colMatch[1];`n                        const colType = colMatch[2];`n                        let sqlType = 'text';`n                        if (colType === 'uuid') sqlType = 'uuid';`n                        else if (colType === 'integer' || colType === 'int') sqlType = 'integer';`n                        else if (colType === 'text' || colType === 'varchar') sqlType = 'text';`n                        else if (colType === 'timestamp') sqlType = 'timestamp';`n                        else if (colType === 'boolean') sqlType = 'boolean';`n                        else if (colType === 'serial') sqlType = 'serial';`n                        const isPk = trimmed.includes('.primaryKey()');`n                        const isUnique = trimmed.includes('.unique()');`n                        const notNull = trimmed.includes('.notNull()');`n                        result.schema.tables[currentTable].columns[colName] = { type: sqlType, nullable: !notNull && !isPk, primary: isPk, unique: isUnique };`n                    }`n                } else {`n                    inTable = false;`n                    currentTable = null;`n                }`n            }`n        }`n        const foundTables = Object.keys(result.schema.tables).length > 0;`n        if (!foundTables) {
             result.status = 'error';
-            result.errors.push("No pgTable definitions found. Expected format: export const tableName = pgTable(\"tableName\", { ... });");
+            result.errors.push("No pgTable definitions found in Drizzle schema.");
             return result;
         }
-
-        // Infer relationships from column names (e.g., user_id -> users table)
-        console.log('[parseDrizzle] Inferring relationships...');
-        for (const [tableName, table] of Object.entries(result.schema.tables)) {
-            for (const [colName, col] of Object.entries(table.columns)) {
-                // Check if column name suggests a foreign key (ends with _id or Id)
-                if (colName.endsWith('_id') || (colName.endsWith('Id') && colName !== 'id')) {
-                    // Extract referenced table name
-                    let refTable = colName.replace(/_id$/, '').replace(/Id$/, '');
-
-                    // Try plural form (e.g., user_id -> users)
-                    const pluralRef = refTable + 's';
-                    if (result.schema.tables[pluralRef]) {
-                        refTable = pluralRef;
-                    }
-
-                    // Check if referenced table exists
-                    if (result.schema.tables[refTable]) {
-                        console.log(`[parseDrizzle] Found relationship: ${tableName}.${colName} -> ${refTable}.id`);
-                        col.foreign_key = `${refTable}.id`;
-                        table.relations.push({
-                            type: 'many_to_one',
-                            from: `${tableName}.${colName}`,
-                            to: `${refTable}.id`
-                        });
-                    }
-                }
-            }
-        }
-
 
         result.stats.table_count = Object.keys(result.schema.tables).length;
         result.stats.column_count = Object.values(result.schema.tables).reduce((acc, t) => acc + Object.keys(t.columns).length, 0);
@@ -695,15 +568,14 @@ export function parseDrizzle(drizzle: string): ParsingResult {
         if (result.stats.table_count === 0) {
             result.status = 'error';
             result.errors.push("No tables found in Drizzle schema.");
-        } else if (result.stats.column_count === 0) {
-            result.warnings.push("Tables found but no columns were parsed.");
         }
 
     } catch (e: any) {
         result.status = 'error';
-        result.errors.push("Parser error: " + e.message);
+        result.errors.push(e.message);
     }
 
     return result;
 }
+
 

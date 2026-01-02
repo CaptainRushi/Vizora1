@@ -7,6 +7,8 @@ import OpenAI from 'openai';
 import puppeteer from 'puppeteer';
 import {
     parseSqlDeterministc,
+    parsePrisma,
+    parseDrizzle,
     generateSql,
     generatePrisma,
     generateDrizzle,
@@ -15,6 +17,13 @@ import {
 } from './parser.js';
 import { marked } from 'marked';
 import crypto from 'crypto';
+import {
+    getProjectPlan,
+    getGlobalUsage,
+    incrementUsage,
+    getProjectUsage,
+    DEFAULT_PLANS
+} from './billing.js';
 
 dotenv.config();
 
@@ -118,10 +127,34 @@ async function generateAndSaveExplanations(projectId: string, versionNumber: num
         if (sErr) console.warn('[AI Engine] Settings fetch warning:', sErr.message);
 
         const mode = settings?.explanation_mode || 'developer';
+        const plan = await getProjectPlan(projectId);
+        const usage = await getProjectUsage(projectId);
+
         const schemaString = JSON.stringify(schema, null, 2);
         const tableNames = Object.keys(schema.tables);
 
-        console.log(`[AI Engine] Mode: ${mode}. Generating database and relationship summaries...`);
+        console.log(`[AI Engine] Mode: ${mode}. Plan: ${plan.id}. Generating...`);
+
+        // BILLING GATE: If Free, only do DB summary
+        if (plan.ai_limit === 'limited') {
+            const dbPrompt = `Explain this database schema JSON in simple, clear English.\n\nRules:\n- Explain the database as a whole\n- Include main entities and their roles\n- High-level relationships\n- Do not invent anything\n- Do not guess business logic\n- Be concise but useful\n\nSchema:\n${schemaString}`;
+            const dbRes = await openai.chat.completions.create({
+                model: "openai/gpt-4o-mini",
+                temperature: 0.2,
+                messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: dbPrompt }]
+            });
+            const explanations = [{
+                project_id: projectId,
+                version_number: versionNumber,
+                entity_type: 'database',
+                entity_name: null,
+                mode: mode,
+                content: dbRes.choices[0]?.message.content ?? "No explanation generated."
+            }];
+            await supabase.from('schema_explanations').delete().eq('project_id', projectId).eq('version_number', versionNumber);
+            await supabase.from('schema_explanations').insert(explanations);
+            return true;
+        }
 
         // 1. Prepare prompts
         const dbPrompt = `Explain this database schema JSON in simple, clear English.\n\nRules:\n- Explain the database as a whole\n- Include main entities and their roles\n- High-level relationships\n- Do not invent anything\n- Do not guess business logic\n- Be concise but useful\n\nSchema:\n${schemaString}`;
@@ -211,11 +244,6 @@ async function generateAndSaveExplanations(projectId: string, versionNumber: num
         }
 
         console.log(`[AI Engine] SUCCESS: Generated ${explanations.length} insights`);
-
-        // TRIGGER AUTO DOCS GENERATION
-        generateDocumentation(projectId, versionNumber).catch(err => {
-            console.error('[AutoDocs] Background generation failed:', err);
-        });
 
         return true;
     } catch (err: any) {
@@ -511,6 +539,12 @@ app.get('/', (req, res) => {
     });
 });
 
+// Favicon handler to prevent 404 errors
+app.get('/favicon.ico', (req, res) => {
+    res.status(204).end();
+});
+
+
 // --- ROUTES ---
 /**
  * GLOBAL ROUTE: Create Project
@@ -523,6 +557,28 @@ app.post('/projects', async (req, res) => {
         const { name, schema_type } = req.body;
         if (!name || !schema_type) return res.status(400).json({ error: "Name and schema_type required" });
 
+        // BILLING GATE: Check total projects (global since no auth)
+        // We look for any project that is on 'free' plan if the current count > 0
+        const { projectCount } = await getGlobalUsage();
+        if (projectCount >= 1) {
+            // Check if there is a non-free project that would allow more?
+            // Since no auth, we just enforce the lowest limit unless one project is upgraded.
+            // Simplified: If you have 1 project and it's free, you can't create more.
+            const projects = await supabase.from('projects').select('id');
+            let maxLimit = 1;
+            for (const p of projects.data || []) {
+                const plan = await getProjectPlan(p.id);
+                if (plan.project_limit > maxLimit) maxLimit = plan.project_limit;
+            }
+
+            if (projectCount >= maxLimit) {
+                return res.status(403).json({
+                    error: "Project limit reached",
+                    message: `You've reached the project limit. Upgrade to Pro to manage up to 5 schemas.`
+                });
+            }
+        }
+
         console.log("Creating project:", { name, schema_type });
         const { data, error } = await supabase
             .from('projects')
@@ -534,9 +590,55 @@ app.post('/projects', async (req, res) => {
             console.error("Supabase Project Insert Error:", error);
             throw error;
         }
+
+        // Initialize subscription as Free
+        await supabase.from('subscriptions').insert({
+            project_id: data.id,
+            plan_id: 'free',
+            status: 'active'
+        });
+
         res.json(data);
     } catch (err: any) {
         console.error("INTERNAL SERVER ERROR (Create Project):", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * GLOBAL ROUTE: Delete Project
+ * Performs a deep cleanup of all project-related data across all tables.
+ * This is necessary because some database configurations might not have ON DELETE CASCADE.
+ */
+app.delete('/projects/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log(`[Project Cleanup] Hard deleting project: ${id}`);
+
+        // Define tables to clean up in order (children first)
+        const tables = [
+            'schema_changes',
+            'schema_explanations',
+            'documentation_outputs',
+            'diagram_states',
+            'schema_versions',
+            'project_settings',
+            'team_members',
+            'team_invites'
+        ];
+
+        for (const table of tables) {
+            const { error } = await supabase.from(table).delete().eq('project_id', id);
+            if (error) console.warn(`[Project Cleanup] Warning deleting from ${table}:`, error.message);
+        }
+
+        // Finally delete the project itself
+        const { error: pErr } = await supabase.from('projects').delete().eq('id', id);
+        if (pErr) throw pErr;
+
+        res.json({ success: true, message: "Project and all associated data deleted successfully." });
+    } catch (err: any) {
+        console.error("INTERNAL SERVER ERROR (Delete Project):", err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -555,8 +657,45 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
             return res.status(400).json({ error: "raw_schema is required" });
         }
 
-        // 1. Parse Schema
-        const result = parseSqlDeterministc(raw_schema);
+        // BILLING GATE: Check version count
+        const plan = await getProjectPlan(id as string);
+        const usage = await getProjectUsage(id as string);
+        if (usage.versions >= plan.version_limit) {
+            return res.status(403).json({
+                error: "Version limit reached",
+                message: `Free plan is limited to ${plan.version_limit} versions. Upgrade to Pro for up to 20.`
+            });
+        }
+
+        // Get project schema type to determine which parser to use
+        const { data: project, error: projectErr } = await supabase
+            .from('projects')
+            .select('schema_type')
+            .eq('id', id)
+            .single();
+
+        if (projectErr || !project) {
+            return res.status(404).json({ error: "Project not found" });
+        }
+
+        const schemaType = project.schema_type || 'sql';
+        console.log(`[Schema Ingestion] Using parser for type: ${schemaType}`);
+
+        // 1. Parse Schema using the appropriate parser
+        let result;
+        switch (schemaType) {
+            case 'prisma':
+                result = parsePrisma(raw_schema);
+                break;
+            case 'drizzle':
+                result = parseDrizzle(raw_schema);
+                break;
+            case 'sql':
+            default:
+                result = parseSqlDeterministc(raw_schema);
+                break;
+        }
+
         if (result.status === 'error') {
             return res.status(400).json({ error: result.errors.join(', ') });
         }
@@ -915,6 +1054,43 @@ app.patch('/projects/:id/settings', requireProjectContext, async (req, res) => {
 });
 
 /**
+ * PROJECT-SCOPED ROUTE: Billing Status
+ */
+app.get('/projects/:id/billing', requireProjectContext, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const plan = await getProjectPlan(id as string);
+        const usage = await getProjectUsage(id as string);
+        res.json({ plan, usage, all_plans: DEFAULT_PLANS });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * PROJECT-SCOPED ROUTE: Upgrade (Mock)
+ */
+app.post('/projects/:id/billing/upgrade', requireProjectContext, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { plan_id } = req.body;
+        if (!DEFAULT_PLANS[plan_id]) return res.status(400).json({ error: "Invalid plan" });
+
+        await supabase.from('subscriptions').update({ status: 'expired' }).eq('project_id', id);
+        await supabase.from('subscriptions').insert({
+            project_id: id,
+            plan_id: plan_id,
+            status: 'active'
+        });
+
+        res.json({ success: true, message: `Successfully upgraded to ${plan_id}` });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+/**
  * PROJECT-SCOPED ROUTE: Compare any two versions
  */
 app.post('/projects/:id/compare', requireProjectContext, async (req, res) => {
@@ -990,6 +1166,224 @@ app.put('/projects/:id/normalized-schema', requireProjectContext, async (req, re
 
         if (error) throw error;
         res.json({ success: true, version: nextVersion });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * EMAIL SERVICE
+ */
+const sendEmail = async ({ to, subject, html }: { to: string, subject: string, html: string }) => {
+    // Abstraction for Email Provider (Resend / SendGrid / Supabase SMTP)
+    console.log(`[Email Service] To: ${to} | Subject: ${subject}`);
+    console.log(`[Email Service] Body: ${html}`);
+
+    // In a real implementation, you would call your provider here:
+    // await resend.emails.send({ ... })
+    // For now, we simulate success.
+    return true;
+};
+
+/**
+ * PROJECT-SCOPED ROUTE: List Team Members & Invites
+ */
+app.get('/projects/:id/team', requireProjectContext, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Fetch Members
+        const { data: members, error: mErr } = await supabase
+            .from('team_members')
+            .select('*')
+            .eq('project_id', id)
+            .order('joined_at', { ascending: false });
+
+        if (mErr) throw mErr;
+
+        // Fetch Pending Invites
+        const { data: invites, error: iErr } = await supabase
+            .from('team_invites')
+            .select('*')
+            .eq('project_id', id)
+            .order('created_at', { ascending: false });
+
+        if (iErr) throw iErr;
+
+        // Check for expired invites and update them on read (lazy expiration)
+        const now = new Date();
+        const expiredInvites = invites.filter((inv: any) =>
+            inv.status === 'pending' && new Date(inv.expires_at) < now
+        );
+
+        if (expiredInvites.length > 0) {
+            // Background update for expired
+            const expiredIds = expiredInvites.map((i: any) => i.id);
+            await supabase.from('team_invites')
+                .update({ status: 'expired' })
+                .in('id', expiredIds);
+        }
+
+        res.json({
+            members,
+            invites: invites.map((inv: any) => ({
+                ...inv,
+                status: (inv.status === 'pending' && new Date(inv.expires_at) < now) ? 'expired' : inv.status
+            }))
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * PROJECT-SCOPED ROUTE: Send Team Invite
+ */
+app.post('/projects/:id/team/invite', requireProjectContext, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { email, role } = req.body;
+
+        if (!email || !role) {
+            return res.status(400).json({ error: "Email and role are required" });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // 1. Check if already a member
+        const { data: existingMember } = await supabase
+            .from('team_members')
+            .select('id')
+            .eq('project_id', id)
+            .eq('email', normalizedEmail)
+            .maybeSingle();
+
+        if (existingMember) {
+            return res.status(409).json({ error: "User is already a team member" });
+        }
+
+        // 2. Check for pending invite
+        const { data: existingInvite } = await supabase
+            .from('team_invites')
+            .select('id')
+            .eq('project_id', id)
+            .eq('email', normalizedEmail)
+            .eq('status', 'pending')
+            .maybeSingle();
+
+        if (existingInvite) {
+            return res.status(409).json({ error: "Pending invitation already exists" });
+        }
+
+        // 3. Create Invite
+        const inviteToken = crypto.randomUUID();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+        const { data: invite, error: insErr } = await supabase
+            .from('team_invites')
+            .insert({
+                project_id: id,
+                email: normalizedEmail,
+                role,
+                invite_token: inviteToken,
+                expires_at: expiresAt.toISOString(),
+                status: 'pending'
+            })
+            .select()
+            .single();
+
+        if (insErr) throw insErr;
+
+        // 4. Send Email
+        const inviteLink = `http://localhost:5173/invite/accept?token=${inviteToken}`; // Adjust domain in prod
+        await sendEmail({
+            to: normalizedEmail,
+            subject: 'You have been invited to join a Vizora project',
+            html: `
+                <h2>Project Invitation</h2>
+                <p>You have been invited to join a schema design project as a <strong>${role}</strong>.</p>
+                <p>Click the link below to accept:</p>
+                <a href="${inviteLink}" style="padding: 10px 20px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 5px;">Accept Invite</a>
+                <p>This link expires in 7 days.</p>
+            `
+        });
+
+        res.json({ success: true, invite });
+    } catch (err: any) {
+        console.error("Invite Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * GLOBAL ROUTE: Accept Team Invite
+ */
+app.post('/team/invite/accept', async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ error: "Token required" });
+
+        // 1. Find invite
+        const { data: invite, error: fErr } = await supabase
+            .from('team_invites')
+            .select('*')
+            .eq('invite_token', token)
+            .maybeSingle();
+
+        if (fErr || !invite) {
+            return res.status(404).json({ error: "Invalid invitation token" });
+        }
+
+        // 2. Validate
+        if (invite.status !== 'pending') {
+            return res.status(400).json({ error: `Invite is ${invite.status}` });
+        }
+
+        const now = new Date();
+        if (new Date(invite.expires_at) < now) {
+            await supabase.from('team_invites').update({ status: 'expired' }).eq('id', invite.id);
+            return res.status(400).json({ error: "Invite has expired" });
+        }
+
+        // 3. Add to Team Members
+        const { error: insErr } = await supabase.from('team_members').insert({
+            project_id: invite.project_id,
+            email: invite.email,
+            role: invite.role,
+            joined_at: new Date().toISOString()
+        });
+
+        if (insErr) throw insErr;
+
+        // 4. Update Invite Status
+        await supabase.from('team_invites').update({ status: 'accepted' }).eq('id', invite.id);
+
+        res.json({ success: true, projectId: invite.project_id });
+    } catch (err: any) {
+        console.error("Accept Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * PROJECT-SCOPED ROUTE: Revoke/Delete Invite or Member
+ */
+app.delete('/projects/:id/team/:type/:itemId', requireProjectContext, async (req, res) => {
+    try {
+        const { id, type, itemId } = req.params;
+        const table = type === 'invite' ? 'team_invites' : type === 'member' ? 'team_members' : null;
+
+        if (!table) return res.status(400).json({ error: "Invalid type" });
+
+        const { error } = await supabase
+            .from(table)
+            .delete()
+            .eq('id', itemId)
+            .eq('project_id', id); // Ensure project isolation
+
+        if (error) throw error;
+        res.json({ success: true });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

@@ -67,6 +67,15 @@ function ERDiagramsContent() {
     const [loading, setLoading] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
+    const [billing, setBilling] = useState<any>(null);
+
+    useEffect(() => {
+        if (projectId) {
+            import('../lib/api').then(({ api }) => {
+                api.getBilling(projectId).then(setBilling);
+            });
+        }
+    }, [projectId]);
 
     // CRITICAL: ACTIVE VERSION ONLY RULE
     // This function ALWAYS loads ONLY the latest schema version.
@@ -203,7 +212,15 @@ function ERDiagramsContent() {
                         { label: 'Fit to Screen', onClick: () => fitView(), icon: <Maximize className="h-4 w-4" /> },
                         { label: showLabels ? 'Hide Labels' : 'Show Labels', onClick: () => setShowLabels(!showLabels), icon: showLabels ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" /> },
                         { label: isDarkMode ? 'Switch to Light' : 'Switch to Dark', onClick: () => setIsDarkMode(!isDarkMode), icon: isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" /> },
-                        { label: 'Export Diagram (PNG)', onClick: () => alert('Exporting diagram...'), icon: <Download className="h-4 w-4" /> },
+                        {
+                            label: 'Export Diagram (PNG)', onClick: () => {
+                                if (!billing?.plan.export_enabled) {
+                                    alert("Upgrade to Pro to export diagrams.");
+                                    return;
+                                }
+                                alert('Exporting diagram...');
+                            }, icon: <Download className="h-4 w-4" />
+                        },
                         { label: 'Reset Zoom', onClick: () => fitView({ duration: 800 }), icon: <RefreshCw className="h-4 w-4" /> },
                     ]}
                 />

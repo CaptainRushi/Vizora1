@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { UnifiedSchema, UnifiedColumn } from '../../lib/schema-types';
-import { X, Plus, Trash2, Key, Type, Database, RefreshCw } from 'lucide-react';
+import { X, Plus, Trash2, Key, RefreshCw } from 'lucide-react';
 
 interface PropertiesPanelProps {
     selectedNodeId: string | null;
@@ -83,7 +83,6 @@ export function PropertiesPanel({
                         {Object.entries(table.columns).map(([colName, col]) => (
                             <ColumnEditor
                                 key={colName}
-                                tableName={selectedNodeId}
                                 colName={colName}
                                 column={col}
                                 onUpdate={(oldN, newN, c) => onUpdateColumn(selectedNodeId, oldN, newN, c)}
@@ -116,13 +115,11 @@ export function PropertiesPanel({
 
 // Sub-component for individual column editing
 function ColumnEditor({
-    tableName,
     colName,
     column,
     onUpdate,
     onDelete
 }: {
-    tableName: string,
     colName: string,
     column: UnifiedColumn,
     onUpdate: (oldName: string, newName: string, col: UnifiedColumn) => void,

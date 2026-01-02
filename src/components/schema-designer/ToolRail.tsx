@@ -67,33 +67,34 @@ export function ToolRail({
     };
 
     return (
-        <div className="w-[64px] h-full bg-white border-r border-slate-200 flex flex-col items-center py-6 gap-6 z-20 shrink-0">
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-md border border-slate-200 px-6 py-2.5 rounded-[2rem] flex items-center gap-6 z-30 shadow-2xl shadow-slate-200/50">
             {/* GROUP 1: SELECTION */}
-            <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5">
                 <ToolButton mode="select" icon={MousePointer} label="Select" />
                 <ToolButton mode="pan" icon={Hand} label="Pan Tool (Space)" />
                 <ToolButton action="fit-view" icon={Maximize} label="Zoom to Fit" />
             </div>
 
-            <div className="w-8 h-px bg-slate-100" />
+            <div className="w-px h-6 bg-slate-200" />
 
             {/* GROUP 2: SCHEMA */}
-            <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5">
                 <ToolButton mode="add_table" icon={PlusSquare} label="Add Table" />
                 <ToolButton mode="add_column" icon={Columns} label="Add Column" />
                 <ToolButton mode="add_relation" icon={Link} label="Add Relationship" />
             </div>
 
-            <div className="w-8 h-px bg-slate-100" />
+            <div className="w-px h-6 bg-slate-200" />
 
             {/* GROUP 3: EDITING */}
-            <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5">
                 <ToolButton action="delete" icon={Trash2} label="Delete Selected" />
             </div>
 
-            <div className="mt-auto flex flex-col gap-2">
-                <div className="w-8 h-px bg-slate-100 my-2" />
-                {/* GROUP 4: VIEW */}
+            <div className="w-px h-6 bg-slate-200" />
+
+            {/* GROUP 4: VIEW */}
+            <div className="flex items-center gap-1.5">
                 <ToolButton action="grid" icon={Grid} label="Toggle Grid" />
                 <ToolButton action="snap" icon={Magnet} label="Snap to Grid" />
             </div>

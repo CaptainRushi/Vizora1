@@ -16,7 +16,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="flex-1 flex relative">
                 <GlobalSidebar />
 
-                <main className="flex-1 pl-20 transition-all duration-300">
+                <main className="flex-1 pl-[72px] transition-all duration-300">
                     {/* Content Container */}
                     <div className="min-h-[calc(100vh-2rem)] w-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] p-0">
                         {children}

@@ -47,5 +47,25 @@ export const api = {
     updateSchema: async (projectId: string, normalized_schema: any) => {
         const res = await axios.put(`${API_BASE_URL}/projects/${projectId}/normalized-schema`, { normalized_schema });
         return res.data;
+    },
+    deleteProject: async (projectId: string) => {
+        const res = await axios.delete(`${API_BASE_URL}/projects/${projectId}`);
+        return res.data;
+    },
+    getBilling: async (projectId: string) => {
+        const res = await axios.get(`${API_BASE_URL}/projects/${projectId}/billing`);
+        return res.data;
+    },
+    upgradePlan: async (projectId: string, planId: string) => {
+        const res = await axios.post(`${API_BASE_URL}/projects/${projectId}/billing/upgrade`, { plan_id: planId });
+        return res.data;
+    },
+    getAppearance: async (projectId?: string) => {
+        // Placeholder for global or user-level appearance settings
+        return { theme: 'light' };
+    },
+    updateAppearance: async (projectId: string, appearance: any) => {
+        // Placeholder for updating appearance
+        return { success: true };
     }
 };

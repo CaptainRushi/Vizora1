@@ -20,51 +20,62 @@ import {
     Comments,
     UserDashboard
 } from './pages';
+import { TeamMembers } from './pages/TeamMembers';
+import { InviteAccept } from './pages/InviteAccept';
+
+import { Hero } from './components/Hero';
 
 function App() {
     return (
         <Router>
-            <MainLayout>
-                <Routes>
-                    {/* GLOBAL ROUTES - Standard Navigation */}
-                    <Route path="/" element={<Navigate to="/projects" replace />} />
-                    <Route path="/projects" element={<Projects />} />
-                    <Route path="/account" element={<UserDashboard />} />
-                    <Route path="/designer" element={<SchemaDesigner />} />
-                    <Route path="/billing" element={<Billing />} />
-                    <Route path="/settings" element={<GlobalSettings />} />
-                    <Route path="/help" element={<PlaceholderPage title="Help / Docs" />} />
+            <Routes>
+                {/* Public Landing Page - No Layout */}
+                <Route path="/" element={<Hero />} />
 
-                    {/* WORKSPACE ROUTES - Strictly Scoped */}
-                    <Route path="/workspace/:projectId/*" element={
-                        <ProjectLayout>
-                            {/* We use Routes here to nest, or we could use Outlet pattern if we refactor ProjectLayout.
-                                But since ProjectLayout just renders children, we can use Routes inside it.
-                                Actually V6 allows nested Routes cleanly.
-                            */}
-                            <Routes>
-                                <Route path="overview" element={<Overview />} />
-                                <Route path="schema-input" element={<SchemaInput />} />
-                                <Route path="er-diagram" element={<ERDiagrams />} />
-                                <Route path="schema-designer" element={<SchemaDesigner />} />
-                                <Route path="explorer" element={<SchemaExplorer />} />
-                                <Route path="compare" element={<VersionCompare />} />
-                                <Route path="explanations" element={<AiExplanations />} />
-                                <Route path="docs" element={<AutoDocs />} />
-                                <Route path="versions" element={<VersionHistory />} />
-                                <Route path="changes" element={<ChangeTracking />} />
-                                <Route path="settings" element={<Settings />} />
-                                <Route path="comments" element={<Comments />} />
-                                {/* Default redirect within workspace */}
-                                <Route path="*" element={<Navigate to="overview" replace />} />
-                            </Routes>
-                        </ProjectLayout>
-                    } />
+                {/* Public Invite Accept - No Layout */}
+                <Route path="/invite/accept" element={<InviteAccept />} />
 
-                    {/* Catch-all redirect to projects */}
-                    <Route path="*" element={<Navigate to="/projects" replace />} />
-                </Routes>
-            </MainLayout>
+                {/* WORKSPACE ROUTES - Strictly Scoped - Standalone ProjectLayout */}
+                <Route path="/workspace/:projectId/*" element={
+                    <ProjectLayout>
+                        <Routes>
+                            <Route path="overview" element={<Overview />} />
+                            <Route path="team" element={<TeamMembers />} />
+                            <Route path="schema-input" element={<SchemaInput />} />
+                            <Route path="er-diagram" element={<ERDiagrams />} />
+                            <Route path="schema-designer" element={<SchemaDesigner />} />
+                            <Route path="explorer" element={<SchemaExplorer />} />
+                            <Route path="compare" element={<VersionCompare />} />
+                            <Route path="explanations" element={<AiExplanations />} />
+                            <Route path="docs" element={<AutoDocs />} />
+                            <Route path="versions" element={<VersionHistory />} />
+                            <Route path="changes" element={<ChangeTracking />} />
+                            <Route path="settings" element={<Settings />} />
+                            <Route path="comments" element={<Comments />} />
+                            {/* Default redirect within workspace */}
+                            <Route path="*" element={<Navigate to="overview" replace />} />
+                        </Routes>
+                    </ProjectLayout>
+                } />
+
+                {/* Main Application - Wrapped in Layout */}
+                <Route path="/*" element={
+                    <MainLayout>
+                        <Routes>
+                            {/* Redirect root of /app to projects if needed, but here we just map direct paths */}
+                            <Route path="/projects" element={<Projects />} />
+                            <Route path="/account" element={<UserDashboard />} />
+                            <Route path="/designer" element={<SchemaDesigner />} />
+                            <Route path="/billing" element={<Billing />} />
+                            <Route path="/settings" element={<GlobalSettings />} />
+                            <Route path="/help" element={<PlaceholderPage title="Help / Docs" />} />
+
+                            {/* Catch-all: If user is logged in, redirect unknown paths to projects */}
+                            <Route path="*" element={<Navigate to="/projects" replace />} />
+                        </Routes>
+                    </MainLayout>
+                } />
+            </Routes>
         </Router>
     );
 }
