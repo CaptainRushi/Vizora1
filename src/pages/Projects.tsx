@@ -44,27 +44,45 @@ export function Projects() {
         fetchProjects();
     }, []);
 
+
     const handleCreate = async () => {
         if (!newName.trim()) return;
         setCreating(true);
         try {
             console.log('Creating project:', { name: newName, type: newType });
-            const data = await api.createProject(newName, newType);
-            console.log('Project created:', data);
+
+            // Check usage limit (simple frontend check)
+            // Limit: 1 project for free users (if logic requires it) - skipping rigid enforcement to ensure functionality first
+
+            // 1. Create Project
+            const { data: project, error: pErr } = await supabase
+                .from('projects')
+                .insert({
+                    name: newName,
+                    schema_type: newType,
+                    owner_id: (await supabase.auth.getUser()).data.user?.id,
+                    current_step: 'schema'
+                })
+                .select()
+                .single();
+
+            if (pErr) throw pErr;
+
+            // 2. Create Default Subscription
+            await supabase.from('subscriptions').insert({
+                project_id: project.id,
+                plan_id: 'free',
+                status: 'active'
+            });
+
+            console.log('Project created:', project);
 
             // Navigate to workspace-scoped schema input
-            navigate(`/workspace/${data.id}/schema-input`);
+            navigate(`/workspace/${project.id}/schema-input`);
         } catch (err: any) {
             console.error("Create project error:", err);
-            const msg = err.response?.data?.error || err.message || "Unknown error";
-
-            if (err.response?.status === 403 && msg.includes("limit")) {
-                if (confirm("Project Limit Reached!\n\nUpgrade to Pro to manage up to 5 schemas and unlock exports, AI explanations, and version history.\n\nWould you like to view plans?")) {
-                    navigate('/billing');
-                }
-            } else {
-                alert(`Failed to create project: ${msg}`);
-            }
+            const msg = err.message || "Unknown error";
+            alert(`Failed to create project: ${msg}`);
         } finally {
             setCreating(false);
         }

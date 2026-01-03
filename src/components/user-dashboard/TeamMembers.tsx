@@ -72,7 +72,7 @@ export function TeamMembers() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden min-h-[500px]">
-                <TeamManager projectId={selectedProjectId} />
+                <TeamManager />
             </div>
         </div>
     );

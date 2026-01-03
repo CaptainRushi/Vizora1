@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import type { PostgrestSingleResponse } from '@supabase/supabase-js';
 
 dotenv.config();
 
@@ -8,106 +9,171 @@ const supabaseUrl = sanitize(process.env.SUPABASE_URL || process.env.VITE_SUPABA
 const supabaseKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '');
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-export interface Plan {
+export interface BillingPlan {
     id: string;
-    name: string;
+    price_inr: number;
     project_limit: number;
     version_limit: number;
-    ai_limit: 'limited' | 'full';
-    export_enabled: boolean;
-    designer_enabled: boolean;
-    comments_enabled: boolean;
+    allow_exports: boolean;
+    allow_designer: boolean;
+    allow_team: boolean;
+    ai_level: 'none' | 'db' | 'table' | 'full';
 }
 
-export const DEFAULT_PLANS: Record<string, Plan> = {
-    free: {
+export interface WorkspaceUsage {
+    project_count: number;
+    version_count_per_project: Record<string, number>;
+}
+
+// Cache plans in memory for performance (they are static)
+let PLANS_CACHE: Record<string, BillingPlan> | null = null;
+
+async function getPlans(): Promise<Record<string, BillingPlan>> {
+    if (PLANS_CACHE) return PLANS_CACHE;
+
+    const { data, error } = await supabase.from('billing_plans').select('*');
+    if (error || !data) {
+        console.error("Failed to load plans", error);
+        // Fallback to strict code defaults if DB fails
+        return {
+            free: { id: 'free', price_inr: 0, project_limit: 1, version_limit: 2, allow_exports: false, allow_designer: false, allow_team: false, ai_level: 'db' },
+            pro: { id: 'pro', price_inr: 1499, project_limit: 5, version_limit: 30, allow_exports: true, allow_designer: true, allow_team: false, ai_level: 'table' },
+            teams: { id: 'teams', price_inr: 4999, project_limit: 20, version_limit: -1, allow_exports: true, allow_designer: true, allow_team: true, ai_level: 'full' },
+            business: { id: 'business', price_inr: 9999, project_limit: -1, version_limit: -1, allow_exports: true, allow_designer: true, allow_team: true, ai_level: 'full' }
+        };
+    }
+
+    const map: Record<string, BillingPlan> = {};
+    data.forEach((p: any) => map[p.id] = p);
+    PLANS_CACHE = map;
+    return map;
+}
+
+export async function getWorkspacePlan(workspaceId: string): Promise<BillingPlan> {
+    const plans = await getPlans();
+
+    // Hardcoded fallback in case plans object is malformed
+    const freePlanFallback: BillingPlan = {
         id: 'free',
-        name: 'Free',
+        price_inr: 0,
         project_limit: 1,
         version_limit: 2,
-        ai_limit: 'limited',
-        export_enabled: false,
-        designer_enabled: false,
-        comments_enabled: false
-    },
-    pro: {
-        id: 'pro',
-        name: 'Pro',
-        project_limit: 5,
-        version_limit: 20,
-        ai_limit: 'full',
-        export_enabled: true,
-        designer_enabled: true,
-        comments_enabled: false
-    },
-    teams: {
-        id: 'teams',
-        name: 'Teams',
-        project_limit: 15,
-        version_limit: 9999,
-        ai_limit: 'full',
-        export_enabled: true,
-        designer_enabled: true,
-        comments_enabled: true
-    }
-};
+        allow_exports: false,
+        allow_designer: false,
+        allow_team: false,
+        ai_level: 'db'
+    };
 
-export async function getProjectPlan(projectId: string): Promise<Plan> {
-    try {
-        const { data: sub } = await supabase
-            .from('subscriptions')
-            .select('plan_id')
-            .eq('project_id', projectId)
-            .eq('status', 'active')
-            .maybeSingle();
+    // Get active subscription
+    const { data: billing } = await supabase
+        .from('workspace_billing')
+        .select('plan_id, status')
+        .eq('workspace_id', workspaceId)
+        .single();
 
-        const planId = sub?.plan_id || 'free';
-        return (DEFAULT_PLANS[planId] || DEFAULT_PLANS.free) as Plan;
-    } catch (e) {
-        return DEFAULT_PLANS.free as Plan;
+    if (!billing || billing.status !== 'active') {
+        return plans['free'] || plans.free || freePlanFallback;
     }
+
+    return plans[billing.plan_id] || plans['free'] || plans.free || freePlanFallback;
 }
 
-export async function getGlobalUsage() {
-    // Current total projects
-    const { count } = await supabase.from('projects').select('*', { count: 'exact', head: true });
-    return { projectCount: count || 0 };
-}
+export async function checkProjectLimit(workspaceId: string): Promise<{ allowed: boolean; message?: string }> {
+    const plan = await getWorkspacePlan(workspaceId);
 
-export async function incrementUsage(projectId: string, feature: 'ai_calls' | 'exports' | 'versions') {
-    const { data: counter } = await supabase
-        .from('usage_counters')
-        .select('*')
-        .eq('project_id', projectId)
-        .maybeSingle();
+    // Count existing projects
+    const { count, error } = await supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId);
 
-    if (!counter) {
-        await supabase.from('usage_counters').insert({
-            project_id: projectId,
-            [feature]: 1
-        });
-    } else {
-        await supabase.from('usage_counters')
-            .update({ [feature]: (counter[feature] || 0) + 1 })
-            .eq('project_id', projectId);
+    if (error) {
+        console.error("Error checking project limit:", error);
+        return { allowed: false, message: "System error checking limits." };
     }
+
+    const currentCount = count || 0;
+
+    if (currentCount >= plan.project_limit) {
+        return {
+            allowed: false,
+            message: `Project limit reached (${currentCount}/${plan.project_limit}). Upgrade to ${plan.id === 'free' ? 'Pro' : 'Teams'} to create more.`
+        };
+    }
+
+    return { allowed: true };
 }
 
-export async function getProjectUsage(projectId: string) {
-    const { data: counter } = await supabase
-        .from('usage_counters')
-        .select('*')
-        .eq('project_id', projectId)
-        .maybeSingle();
+export async function checkVersionLimit(workspaceId: string, projectId: string): Promise<{ allowed: boolean; message?: string }> {
+    const plan = await getWorkspacePlan(workspaceId);
 
-    const { count: versions } = await supabase
+    // Unlimited check
+    if (plan.version_limit === -1) return { allowed: true };
+
+    const { count } = await supabase
         .from('schema_versions')
         .select('*', { count: 'exact', head: true })
         .eq('project_id', projectId);
 
-    return {
-        ai_calls: counter?.ai_calls || 0,
-        exports: counter?.exports || 0,
-        versions: versions || 0
-    };
+    const currentVersions = count || 0;
+
+    if (currentVersions >= plan.version_limit) {
+        return {
+            allowed: false,
+            message: `Version limit reached (${currentVersions}/${plan.version_limit}) for this project. Upgrade to preserve more history.`
+        };
+    }
+
+    return { allowed: true };
+}
+
+export async function checkFeatureAccess(workspaceId: string, feature: 'exports' | 'designer' | 'team'): Promise<boolean> {
+    const plan = await getWorkspacePlan(workspaceId);
+
+    if (feature === 'exports') return plan.allow_exports;
+    if (feature === 'designer') return plan.allow_designer;
+    if (feature === 'team') return plan.allow_team;
+
+    return false;
+}
+
+export async function getAiAccessLevel(workspaceId: string) {
+    const plan = await getWorkspacePlan(workspaceId);
+    return plan.ai_level;
+}
+
+// --- BILLING MUTATIONS ---
+
+export async function upgradeWorkspace(workspaceId: string, targetPlanId: string) {
+    // In a real app, this would verify payment via Stripe
+    // For this implementation, we assume successful "payment" and just update the DB
+
+    // Verify plan validity
+    const plans = await getPlans();
+    if (!plans[targetPlanId]) throw new Error("Invalid plan ID");
+
+    // "Charge" the card...
+    console.log(`[Billing] Charging workspace ${workspaceId} for plan ${targetPlanId}`);
+
+    // Update DB
+    const { error } = await supabase
+        .from('workspace_billing')
+        .upsert({
+            workspace_id: workspaceId,
+            plan_id: targetPlanId,
+            status: 'active',
+            current_period_start: new Date().toISOString(),
+            current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // +30 days
+        });
+
+    if (error) throw error;
+
+    // If upgrading to Team, we might need to update workspace type?
+    // The spec says: "if (plan.allow_team) { workspace.type = 'team' }"
+    // Let's enforce that.
+    if (plans[targetPlanId].allow_team) {
+        await supabase.from('workspaces').update({ type: 'team' }).eq('id', workspaceId);
+    }
+
+    return { success: true, plan: targetPlanId };
 }

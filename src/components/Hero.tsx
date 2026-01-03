@@ -1,9 +1,26 @@
-import { Share2, Layers, FileText, FileCode } from 'lucide-react';
+import { Share2, Layers, FileText, FileCode, LogIn, Layout } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Logo } from './Logo';
+import { useAuth } from '../context/AuthContext';
 
 export function Hero() {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  // Handle OAuth callback redirects only
+  useEffect(() => {
+    const hasAuthParams =
+      window.location.hash.includes('access_token') ||
+      window.location.search.includes('code=');
+
+    if (hasAuthParams) {
+      navigate('/auth/signin' + window.location.search + window.location.hash, { replace: true });
+      return;
+    }
+    // Note: We no longer auto-redirect authenticated users from the landing page
+    // This allows them to view the Hero page when clicking the Vizora icon
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col items-center relative overflow-hidden font-sans">
@@ -13,17 +30,37 @@ export function Hero() {
         style={{ backgroundImage: 'radial-gradient(#e5e7eb 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
       </div>
 
-      {/* Brand Mark (Top Center) */}
-      <div className="absolute top-8 sm:top-12 z-20 select-none">
-        <button
-          onClick={() => navigate('/')}
-          className="flex flex-col items-center gap-3 group transition-transform hover:scale-105 active:scale-95"
-        >
-          <div className="p-2">
-            <Logo size={32} animated={true} />
-          </div>
-          <span className="text-2xl font-black text-slate-900 tracking-tighter group-hover:text-indigo-600 transition-colors">Vizora</span>
-        </button>
+      {/* Top Navigation */}
+      <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-between px-6 sm:px-12 z-20">
+        <div className="flex items-center gap-2 group cursor-pointer" onClick={() => navigate('/')}>
+          <Logo size={24} animated={false} />
+          <span className="text-xl font-bold text-slate-900 tracking-tight">Vizora</span>
+        </div>
+
+        <div>
+          {loading ? (
+            <div className="flex items-center gap-2 px-5 py-2.5 text-slate-400">
+              <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm font-bold">Checking session...</span>
+            </div>
+          ) : user ? (
+            <button
+              onClick={() => navigate('/projects')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-full text-sm font-bold shadow-lg shadow-slate-900/10 hover:bg-black transition-all active:scale-95"
+            >
+              <Layout className="w-4 h-4" />
+              Open Dashboard
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/auth/signin')}
+              className="flex items-center gap-2 px-6 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-bold transition-all"
+            >
+              <LogIn className="w-4 h-4" />
+              Login
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Hero Content (Center) */}
@@ -43,10 +80,10 @@ export function Hero() {
         </p>
 
         <button
-          onClick={() => navigate('/projects')}
-          className="px-10 py-5 bg-indigo-600 text-white rounded-full text-lg font-medium hover:bg-indigo-700 transition-colors shadow-xl shadow-indigo-200/50 flex items-center justify-center gap-2 group transform hover:scale-105 duration-200"
+          onClick={() => navigate(user ? '/projects' : '/auth/signin')}
+          className="px-10 py-5 bg-indigo-600 text-white rounded-full text-lg font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200/50 flex items-center justify-center gap-2 group transform hover:scale-105 duration-200 active:scale-95"
         >
-          Get started
+          {user ? 'Open Dashboard' : 'Log in to start'}
         </button>
       </div>
 

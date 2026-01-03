@@ -18,3 +18,4 @@ export * from './UserDashboard';
 export * from './TeamMembers';
 export * from './InviteAccept';
 export * from './Billing';
+export * from './OnboardingForm';

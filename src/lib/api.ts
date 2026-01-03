@@ -60,11 +60,11 @@ export const api = {
         const res = await axios.post(`${API_BASE_URL}/projects/${projectId}/billing/upgrade`, { plan_id: planId });
         return res.data;
     },
-    getAppearance: async (projectId?: string) => {
+    getAppearance: async (_projectId?: string) => {
         // Placeholder for global or user-level appearance settings
         return { theme: 'light' };
     },
-    updateAppearance: async (projectId: string, appearance: any) => {
+    updateAppearance: async (_projectId: string, _appearance: any) => {
         // Placeholder for updating appearance
         return { success: true };
     }

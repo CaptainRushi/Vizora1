@@ -2,30 +2,24 @@ import { useState, ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../hooks/useProject';
 import { Sidebar } from '../components/Sidebar';
+import { Menu, X, Database } from 'lucide-react';
 
 interface ProjectLayoutProps {
     children: ReactNode;
 }
 
-/**
- * ProjectLayout enforces that a project must be selected.
- * If no project is active, redirects to /projects.
- * This is the HARD BOUNDARY for all schema-related features.
- */
 export function ProjectLayout({ children }: ProjectLayoutProps) {
-    const { projectId, loading } = useProject();
+    const { projectId, project, loading } = useProject();
     const navigate = useNavigate();
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     useEffect(() => {
         if (!loading && !projectId) {
-            // No project selected - redirect to projects page
             navigate('/projects', { replace: true });
         }
     }, [projectId, loading, navigate]);
 
-    // Show loading state while checking project
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
@@ -37,21 +31,40 @@ export function ProjectLayout({ children }: ProjectLayoutProps) {
         );
     }
 
-    // Don't render children if no project (will redirect)
     if (!projectId) {
         return null;
     }
 
-    // Project exists - render the feature
     return (
         <div className="flex flex-col min-h-screen bg-gray-50">
             {/* macOS Window Safe Bar */}
-            <div className="h-8 w-full shrink-0 z-50 select-none pointer-events-none" />
+            <div className="h-8 w-full shrink-0 z-50 select-none pointer-events-none hidden lg:block" />
+
+            {/* Mobile Header */}
+            <header className="lg:hidden h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-40 sticky top-0">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs ring-2 ring-indigo-100 shadow-sm shrink-0">
+                        {project?.name?.[0]?.toUpperCase() || 'P'}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-black text-gray-900 truncate leading-tight">{project?.name}</span>
+                        <div className="flex items-center gap-1 opacity-60">
+                            <Database className="h-2 w-2 text-indigo-600" />
+                            <span className="text-[8px] font-bold uppercase tracking-wider">{project?.schema_type}</span>
+                        </div>
+                    </div>
+                </div>
+                <button
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className="p-2 text-gray-400 hover:text-gray-900 transition-colors"
+                >
+                    {isSidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                </button>
+            </header>
 
             <div className="flex flex-1 relative">
                 <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-                {/* Content Area - Full Bleed for Infinite Canvas */}
                 <div className="flex-1 lg:pl-[270px] w-full relative">
                     {children}
                 </div>

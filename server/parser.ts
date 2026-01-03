@@ -635,7 +635,7 @@ export function parseDrizzle(drizzle: string): ParsingResult {
                         const isUnique = trimmed.includes('.unique()');
                         const notNull = trimmed.includes('.notNull()');
 
-                        if (currentTable && colName) {
+                        if (currentTable && colName && result.schema.tables[currentTable]) {
                             result.schema.tables[currentTable].columns[colName] = {
                                 type: sqlType,
                                 nullable: !notNull && !isPk,

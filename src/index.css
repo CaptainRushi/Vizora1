@@ -111,3 +111,13 @@
 .animate-pulse-bl {
   animation: pulse-to-solid 2s ease-in-out infinite;
 }
+
+/* Ensure sidebars never move */
+.sidebar-fixed {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}

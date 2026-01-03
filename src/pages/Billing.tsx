@@ -77,53 +77,68 @@ export function Billing() {
             id: 'free',
             name: 'Free',
             price: '₹0',
-            target: 'Solo devs / evaluation',
+            target: 'Evaluation only',
             icon: Shield,
             color: 'gray',
             features: [
                 '1 project only',
-                'ER Diagram (view only)',
-                'Schema Explorer',
-                '2 Versions history',
-                'AI Summary only',
-                'Auto Docs Preview'
+                '2 schema versions',
+                'ER Diagram (view-only)',
+                'DB-level AI summary',
+                'Docs preview only'
             ],
-            notIncluded: ['Exports', 'Designer', 'Table AI', 'Team Collab']
+            notIncluded: ['Exports', 'Designer', 'Table AI', 'Team']
         },
         {
             id: 'pro',
             name: 'Pro',
-            price: '₹599',
-            target: 'Individual devs / freelancers',
+            price: '₹1,499',
+            target: 'Solo devs & freelancers',
             icon: Zap,
             color: 'indigo',
             popular: true,
             features: [
                 '5 projects',
-                'ER Diagrams (full)',
-                'Full Table-level AI',
-                '20 Versions history',
-                'Full Auto Docs (Markdown)',
-                'SQL Designer Access',
-                'PNG/SVG/MD Exports'
+                '30 schema versions per project',
+                'Full ER diagrams',
+                'Table-level AI explanations',
+                'Full Markdown docs',
+                'PNG / SVG / MD exports',
+                'SQL Designer'
             ],
-            notIncluded: ['Team Collaboration', 'Unlimited Versions']
+            notIncluded: ['Team collaboration']
         },
         {
             id: 'teams',
             name: 'Teams',
-            price: '₹1,999',
-            target: 'Startups / agencies',
+            price: '₹4,999',
+            target: 'Startups & agencies',
             icon: Users,
             color: 'purple',
             features: [
-                '15 projects',
-                'Everything in Pro',
-                'Unlimited Versions',
-                'Priority Rendering',
-                'Schema Notes & Comments',
-                'Higher resolution exports',
-                'Team-ready structure'
+                '20 projects',
+                'Unlimited schema versions',
+                'Full AI (DB + tables + relations)',
+                'Schema comments & notes',
+                'High-resolution exports',
+                'Team collaboration',
+                'Priority rendering'
+            ]
+        },
+        {
+            id: 'business',
+            name: 'Business',
+            price: '₹9,999',
+            target: 'Enterprise & white-label',
+            icon: Sparkles,
+            color: 'amber',
+            features: [
+                'Unlimited projects',
+                'Unlimited versions',
+                'Unlimited team members',
+                'White-label exports',
+                'Dedicated priority queue',
+                'Early feature access'
             ]
         }
     ];
@@ -179,13 +194,13 @@ export function Billing() {
             </div>
 
             {/* Pricing Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {plans.map((plan) => (
                     <div
                         key={plan.id}
-                        className={`relative group flex flex-col p-10 rounded-[3rem] border-4 transition-all duration-300 ${plan.popular
-                            ? 'bg-white border-indigo-600 shadow-2xl shadow-indigo-100 scale-105 z-10'
-                            : 'bg-white border-gray-50 hover:border-gray-200 shadow-xl shadow-gray-100'
+                        className={`relative group flex flex-col p-8 rounded-[2.5rem] border-4 transition-all duration-300 ${plan.popular
+                                ? 'bg-white border-indigo-600 shadow-2xl shadow-indigo-100 lg:scale-105 z-10'
+                                : 'bg-white border-gray-50 hover:border-gray-200 shadow-xl shadow-gray-100'
                             }`}
                     >
                         {plan.popular && (
@@ -195,8 +210,9 @@ export function Billing() {
                         )}
 
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110 duration-300 ${plan.id === 'free' ? 'bg-gray-100 text-gray-600' :
-                            plan.id === 'pro' ? 'bg-indigo-100 text-indigo-600' :
-                                'bg-purple-100 text-purple-600'
+                                plan.id === 'pro' ? 'bg-indigo-100 text-indigo-600' :
+                                    plan.id === 'teams' ? 'bg-purple-100 text-purple-600' :
+                                        'bg-amber-100 text-amber-600'
                             }`}>
                             <plan.icon className="h-6 w-6" />
                         </div>
@@ -232,10 +248,12 @@ export function Billing() {
                             onClick={() => handleUpgrade(plan.id)}
                             disabled={billing?.plan.id === plan.id || !!upgrading}
                             className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${billing?.plan.id === plan.id
-                                ? 'bg-gray-100 text-gray-400 cursor-default'
-                                : plan.popular
-                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200'
-                                    : 'bg-gray-900 text-white hover:bg-black'
+                                    ? 'bg-gray-100 text-gray-400 cursor-default'
+                                    : plan.popular
+                                        ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200'
+                                        : plan.id === 'business'
+                                            ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-xl shadow-amber-200'
+                                            : 'bg-gray-900 text-white hover:bg-black'
                                 }`}
                         >
                             {upgrading === plan.id ? (
@@ -243,7 +261,7 @@ export function Billing() {
                             ) : billing?.plan.id === plan.id ? (
                                 'Active Plan'
                             ) : (
-                                `Upgrade to ${plan.name}`
+                                `Unlock ${plan.name}`
                             )}
                         </button>
                     </div>

@@ -49,7 +49,7 @@ export function ProjectsList() {
                     <Folder className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-lg font-black text-gray-900 mb-2">No projects yet</h3>
                     <p className="text-sm font-medium text-gray-500 mb-6">
-                        Create your first schema project to get started.
+                        Create your first schema project to begin exploring.
                     </p>
                     <button
                         onClick={() => navigate('/projects')}

@@ -44,12 +44,16 @@ export function SchemaInput() {
             console.error('[SchemaInput] Error:', err);
             const msg = err.response?.data?.error || err.message || 'Failed to parse schema';
 
-            if (err.response?.status === 403 && msg.includes("limit")) {
+            if (err.response?.status === 400) {
+                // It's a validation error from the backend
+                setError(msg);
+            } else if (err.response?.status === 403 && msg.includes("limit")) {
                 if (confirm(`Version Limit Reached!\n\n${err.response.data.message}\n\nWould you like to upgrade to Pro for more history?`)) {
                     navigate('/billing');
                 }
             } else {
-                setError(msg);
+                // Network or server error
+                setError(`Server Error: ${msg}. Please check the server logs.`);
             }
         } finally {
             setLoading(false);

@@ -13,13 +13,16 @@ import {
     ChevronLeft,
     Database,
     LayoutDashboard,
-    Users
+    Users,
+    Github,
+    Chrome
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarItem } from './SidebarItem';
 import { useProject } from '../hooks/useProject';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -36,6 +39,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const location = useLocation();
     const navigate = useNavigate();
     const { projectId } = useProject();
+    const { user } = useAuth();
     const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
 
     const handleNavigation = (path: string) => {
@@ -70,6 +74,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const getWorkspacePath = (subpath: string) => `/workspace/${projectId}/${subpath}`;
 
+    // Helper to get provider icon
+    const ProviderIcon = () => {
+        const provider = user?.app_metadata?.provider;
+        if (provider === 'github') return <Github className="w-3 h-3" />;
+        if (provider === 'google') return <Chrome className="w-3 h-3 text-[#4285F4]" />;
+        return null;
+    };
+
     return (
         <>
             {/* Mobile Overlay */}
@@ -82,7 +94,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
             <aside
                 className={`
-                    fixed top-8 bottom-0 left-0 z-30 w-[270px] flex flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out
+                    sidebar-fixed left-0 z-30 w-[270px] flex flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out
                     ${isOpen ? 'translate-x-0' : '-translate-x-full'}
                     lg:translate-x-0
                 `}
@@ -147,7 +159,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 )}
 
                 {/* CONTEXT-AWARE NAVIGATION */}
-                <div className="flex-1 flex flex-col p-4 space-y-6 select-none overflow-hidden">
+                <div className="flex-1 flex flex-col p-4 space-y-6 select-none overflow-y-auto custom-scrollbar">
 
                     {!inProjectContext ? (
                         /* GLOBAL NAVIGATION - No Project Selected */
@@ -262,9 +274,40 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     )}
                 </div>
 
-                {/* STATIC FOOTER */}
-                <div className="p-6 border-t border-gray-100 flex items-center justify-center opacity-30 select-none pointer-events-none shrink-0">
-                    <span className="text-[10px] font-medium text-gray-400 tracking-widest">VIZORA v1.0</span>
+                {/* USER INFO PANEL */}
+                <div className="mt-auto p-4 border-t border-gray-100 bg-slate-50/50">
+                    <button
+                        onClick={() => handleNavigation('/account')}
+                        className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white transition-all text-left w-full group/user"
+                    >
+                        <div className="relative">
+                            {user?.user_metadata?.avatar_url ? (
+                                <img
+                                    src={user.user_metadata.avatar_url}
+                                    alt={user.user_metadata.full_name}
+                                    className="w-10 h-10 rounded-full border border-gray-200"
+                                />
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border border-indigo-200">
+                                    {user?.user_metadata?.full_name?.[0] || 'U'}
+                                </div>
+                            )}
+                            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border border-gray-100">
+                                <ProviderIcon />
+                            </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-gray-900 truncate group-hover/user:text-indigo-600 transition-colors">
+                                {user?.user_metadata?.full_name || 'Anonymous User'}
+                            </p>
+                            <p className="text-[11px] text-gray-500 truncate lowercase">
+                                {user?.email}
+                            </p>
+                            <p className="text-[10px] text-gray-400 font-medium mt-0.5 flex items-center gap-1">
+                                Signed in via <span className="capitalize">{user?.app_metadata?.provider}</span>
+                            </p>
+                        </div>
+                    </button>
                 </div>
             </aside >
         </>
