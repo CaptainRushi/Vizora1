@@ -1,0 +1,4 @@
+# Ignore everything in server directory for Vercel frontend builds
+*
+!package.json
+!package-lock.json
