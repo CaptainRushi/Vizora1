@@ -10,6 +10,7 @@
   "scripts": {
     "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
+    "build": "npm install",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -23,14 +24,13 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
     "cors": "^2.8.5",
-    "crypto": "^1.0.1",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "marked": "^17.0.1",
     "openai": "^4.28.0",
     "puppeteer": "^24.34.0",
     "razorpay": "^2.9.6",
-    "zod": "^4.3.4"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
