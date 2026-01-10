@@ -28,6 +28,12 @@ import {
 
 dotenv.config();
 
+// --- PRIVATE BETA CONFIGURATION ---
+const BETA_MODE = true;
+const BETA_PROJECT_LIMIT = 2;
+const BETA_VERSION_LIMIT = 4;
+const BETA_LABEL = "Private Beta";
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -107,11 +113,30 @@ const openai = new OpenAI({
 async function getWorkspaceIdFromProject(projectId: string): Promise<string | null> {
     const { data } = await supabase.from('projects').select('workspace_id').eq('id', projectId).single();
     if (!data || !data.workspace_id) {
-        // Fallback checks (if project has owner_id but no workspace_id due to migration)
-        // For now, return null
         return null;
     }
     return data.workspace_id;
+}
+
+// --- HELPER: Get Owner ID from Project/Workspace ---
+async function getOwnerIdFromProject(projectId: string): Promise<string | null> {
+    const { data } = await supabase.from('projects').select('owner_id').eq('id', projectId).single();
+    return data?.owner_id || null;
+}
+
+async function getOwnerIdFromWorkspace(workspaceId: string): Promise<string | null> {
+    const { data } = await supabase.from('workspaces').select('owner_id').eq('id', workspaceId).single();
+    return data?.owner_id || null;
+}
+
+// --- BETA TRACKER HELPER ---
+async function trackBetaUsage(userId: string | null | undefined, action: 'project' | 'version' | 'diagram' | 'docs') {
+    if (!BETA_MODE || !userId) return;
+    try {
+        await supabase.rpc('increment_beta_usage', { u_id: userId, field: action });
+    } catch (err: any) {
+        console.warn(`[Beta Tracker] Failed to track ${action} for ${userId}:`, err.message);
+    }
 }
 
 // --- AI EXPLANATION ENGINE ---
@@ -494,6 +519,91 @@ async function generatePdf(projectId: string, versionNumber: number, markdown: s
     }
 }
 
+
+/**
+ * PRIVATE BETA ROUTES
+ */
+
+// GET /beta/config
+app.get('/beta/config', (req, res) => {
+    res.json({
+        beta_mode: BETA_MODE,
+        project_limit: BETA_PROJECT_LIMIT,
+        version_limit: BETA_VERSION_LIMIT,
+        label: BETA_LABEL
+    });
+});
+
+// GET /beta/usage/:userId
+app.get('/beta/usage/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { data, error } = await supabase.from('beta_usage').select('*').eq('user_id', userId).maybeSingle();
+        if (error) throw error;
+        res.json(data || { projects_created: 0, versions_created: 0, user_id: userId });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /feedback/submit
+app.post('/feedback/submit', async (req, res) => {
+    try {
+        const {
+            user_id,
+            project_id,
+            context,
+            rating,
+            confusing,
+            helpful,
+            missing
+        } = req.body;
+
+        // 1. Basic validation
+        if (!user_id || !rating || !context) {
+            return res.status(400).json({ error: "user_id, rating, and context are required" });
+        }
+
+        if (rating < 1 || rating > 5) {
+            return res.status(400).json({ error: "Rating must be between 1 and 5" });
+        }
+
+        // 2. ANTI-SPAM: Max 3 per 10 mins
+        const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const { count, error: countErr } = await supabase
+            .from('user_feedback')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user_id)
+            .gte('created_at', tenMinsAgo);
+
+        if (countErr) throw countErr;
+
+        if (count !== null && count >= 3) {
+            return res.status(429).json({
+                error: "You’ve already shared feedback recently. Thank you!"
+            });
+        }
+
+        // 3. Save feedback
+        const { error: insertErr } = await supabase.from('user_feedback').insert({
+            user_id,
+            project_id: project_id || null,
+            context,
+            rating,
+            answer_confusing: confusing || null,
+            answer_helpful: helpful || null,
+            answer_missing: missing || null
+        });
+
+        if (insertErr) throw insertErr;
+
+        res.json({ success: true });
+    } catch (err: any) {
+        console.error("[Feedback] Submission failed:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const PORT = 3001;
 
 const SYSTEM_PROMPT = `You are a senior backend engineer and database architect.
@@ -543,8 +653,22 @@ const requireProjectContext = async (req: express.Request, res: express.Response
             .eq('id', projectId)
             .single();
 
-        if (error || !project) {
-            console.error(`[requireProjectContext] Project not found: ${projectId}`, error);
+        if (error) {
+            console.error(`[requireProjectContext] DB Error for ${projectId}:`, error);
+            // If it's a "Row not found" error (code PGRST116), handle as 404
+            if (error.code === 'PGRST116') {
+                return res.status(404).json({
+                    error: "Project not found",
+                    message: `No project exists with id: ${projectId}`
+                });
+            }
+            return res.status(500).json({
+                error: "Database error verifying project",
+                details: error.message
+            });
+        }
+
+        if (!project) {
             return res.status(404).json({
                 error: "Project not found",
                 message: `No project exists with id: ${projectId}`
@@ -589,13 +713,20 @@ app.get('/favicon.ico', (req, res) => {
 
 app.post('/projects', async (req, res) => {
     try {
-        const { name, schema_type, workspace_id } = req.body;
+        const { name, schema_type, workspace_id, user_id } = req.body;
 
         if (!name || !schema_type || !workspace_id) {
             return res.status(400).json({ error: "Name, schema_type, and workspace_id required" });
         }
 
-        // BILLING GATE: Check Workspace Limit
+        let ownerId = await getOwnerIdFromWorkspace(workspace_id);
+
+        // Fallback to user_id if workspace owner lookup fails (safeguard for race conditions during onboarding)
+        if (!ownerId && user_id) ownerId = user_id;
+
+        if (!ownerId) return res.status(404).json({ error: "Workspace owner not found" });
+
+        // 1. BILLING GATE: Check Workspace Limit
         const limitCheck = await checkProjectLimit(workspace_id);
         if (!limitCheck.allowed) {
             return res.status(403).json({
@@ -604,20 +735,53 @@ app.post('/projects', async (req, res) => {
             });
         }
 
-        console.log("Creating project:", { name, schema_type, workspace_id });
+        // 2. BETA GUARD: Project Limit (Backend Logic)
+        if (BETA_MODE) {
+            // Count projects for this owner
+            const { count, error: countErr } = await supabase
+                .from('projects')
+                .select('*', { count: 'exact', head: true })
+                .eq('owner_id', ownerId);
 
+            if (countErr) throw countErr;
+
+            if (count !== null && count >= BETA_PROJECT_LIMIT) {
+                return res.status(403).json({
+                    error: "Private Beta Limit Reached",
+                    message: "You can't create more than 2 projects during the private beta."
+                });
+            }
+        }
+
+        console.log("Creating project:", { name, schema_type, workspace_id, ownerId });
+
+        // 3. ATOMIC DB CHECK (Trigger will catch if race condition occurs)
         const { data, error } = await supabase
             .from('projects')
-            .insert({ name, schema_type, current_step: 'schema', workspace_id })
+            .insert({
+                name,
+                schema_type,
+                current_step: 'schema',
+                workspace_id,
+                owner_id: ownerId // Explicitly set owner_id
+            })
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            // Handle trigger exception
+            if (error.message.includes('beta project limit')) {
+                return res.status(403).json({
+                    error: "Private Beta Limit Reached",
+                    message: error.message
+                });
+            }
+            throw error;
+        }
 
-        // Note: Subscriptions are now workspace level, so we don't insert 'subscriptions' for the project independently.
         res.json(data);
     } catch (err: any) {
-        console.error("INTERNAL SERVER ERROR (Create Project):", err);
+        console.error("[Project Creation] Failed:", err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -1033,6 +1197,17 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
                     message: check.message
                 });
             }
+
+            // BETA GUARD: Version Limit
+            if (BETA_MODE) {
+                const { count } = await supabase.from('schema_versions').select('id', { count: 'exact', head: true }).eq('project_id', id);
+                if ((count || 0) >= BETA_VERSION_LIMIT) {
+                    return res.status(403).json({
+                        error: "Private Beta Limit Reached",
+                        message: `Schema version limit reached in beta (max ${BETA_VERSION_LIMIT} versions per project).`
+                    });
+                }
+            }
         }
 
         // Get project schema type to determine which parser to use
@@ -1154,6 +1329,10 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
 
         await supabase.from('projects').update({ current_step: 'diagram' }).eq('id', id as string);
 
+        // TRACK BETA USAGE
+        const ownerId = await getOwnerIdFromProject(id);
+        if (ownerId) await trackBetaUsage(ownerId as string, 'version');
+
         console.log(`[Schema Ingestion] Success! Version ${nextVersion} created`);
 
         res.json({
@@ -1215,6 +1394,10 @@ app.post('/projects/:id/diagram', requireProjectContext, async (req, res) => {
         await supabase.from('projects').update({ current_step: 'explanation' }).eq(
             'id', id);
 
+        // TRACK BETA USAGE
+        const ownerId = await getOwnerIdFromProject(id);
+        if (ownerId) await trackBetaUsage(ownerId as string, 'diagram');
+
         res.json({ success: true, nodes });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -1228,7 +1411,7 @@ app.post('/projects/:id/diagram', requireProjectContext, async (req, res) => {
  */
 app.post('/projects/:id/explanation', requireProjectContext, async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
         if (!id) throw new Error("ID required");
 
         // Load latest normalized_schema
@@ -1271,7 +1454,12 @@ app.post('/projects/:id/docs', requireProjectContext, async (req, res) => {
 
         if (!version) return res.status(400).json({ error: "Version required" });
 
-        await generateDocumentation(id!, version!);
+        await generateDocumentation(id, version as number);
+
+        // TRACK BETA USAGE
+        const ownerId = await getOwnerIdFromProject(id);
+        if (ownerId) await trackBetaUsage(ownerId, 'docs');
+
         res.json({ success: true });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -1339,41 +1527,7 @@ app.get('/projects/:id/versions', requireProjectContext, async (req, res) => {
     }
 });
 
-/**
- * PROJECT-SCOPED ROUTE: Compare Versions
- */
-app.post('/projects/:id/compare', requireProjectContext, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { from_version, to_version } = req.body;
 
-        if (!from_version || !to_version) {
-            return res.status(400).json({ error: "Both from_version and to_version are required" });
-        }
-
-        const { data: versions } = await supabase
-            .from('schema_versions')
-            .select('normalized_schema, version')
-            .eq('project_id', id)
-            .in('version', [from_version, to_version]);
-
-        if (!versions || versions.length < 2) {
-            return res.status(404).json({ error: "One or both versions not found" });
-        }
-
-        const vFrom = versions.find((v: any) => v.version === from_version);
-        const vTo = versions.find((v: any) => v.version === to_version);
-
-        const diff = compareSchemas(
-            vFrom!.normalized_schema as NormalizedSchema,
-            vTo!.normalized_schema as NormalizedSchema
-        );
-
-        res.json({ diff });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 /**
  * PROJECT-SCOPED ROUTE: Get Settings

@@ -11,9 +11,16 @@ const supabaseKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY || process.en
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Razorpay client (one-time payments only)
+const razorpayKeyId = process.env.RAZORPAY_KEY_ID || '';
+const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
+
+if (!razorpayKeyId) {
+    console.warn('[Razorpay] RAZORPAY_KEY_ID is missing. Payments will fail.');
+}
+
 const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID || '',
-    key_secret: process.env.RAZORPAY_KEY_SECRET || ''
+    key_id: razorpayKeyId || 'rzp_test_dummy',
+    key_secret: razorpayKeySecret || 'dummy_secret'
 });
 
 export interface PaymentOrder {

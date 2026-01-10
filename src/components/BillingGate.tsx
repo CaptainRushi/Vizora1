@@ -1,5 +1,4 @@
-import { useNavigate } from 'react-router-dom';
-import { Lock, Sparkles, ArrowRight } from 'lucide-react';
+import { Lock, Sparkles } from 'lucide-react';
 
 interface BillingGateProps {
     featureName: string;
@@ -7,8 +6,6 @@ interface BillingGateProps {
 }
 
 export function BillingGate({ featureName, description }: BillingGateProps) {
-    const navigate = useNavigate();
-
     return (
         <div className="flex flex-col items-center justify-center p-12 text-center bg-white rounded-[3rem] border-4 border-dashed border-indigo-50 shadow-2xl shadow-indigo-100/20">
             <div className="h-20 w-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6 relative">
@@ -19,7 +16,7 @@ export function BillingGate({ featureName, description }: BillingGateProps) {
             </div>
 
             <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">
-                Upgrade to unlock {featureName}
+                Unlock {featureName}
             </h3>
 
             <p className="text-gray-500 font-medium max-w-sm mb-10 leading-relaxed text-sm">
@@ -27,23 +24,20 @@ export function BillingGate({ featureName, description }: BillingGateProps) {
             </p>
 
             <button
-                onClick={() => navigate('/billing')}
-                className="group flex items-center gap-3 bg-indigo-600 text-white px-10 py-5 rounded-[2rem] text-sm font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all active:scale-95"
+                disabled={true}
+                className="group flex items-center gap-3 bg-gray-100 text-gray-400 px-10 py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-none cursor-not-allowed border-2 border-dashed border-gray-200 transition-all"
             >
-                View Plans & Upgrade
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                Pricing Disabled (Beta)
             </button>
         </div>
     );
 }
 
-interface UpgradePromptProps {
+interface UnlockPromptProps {
     message: string;
 }
 
-export function UpgradePrompt({ message }: UpgradePromptProps) {
-    const navigate = useNavigate();
-
+export function UnlockPrompt({ message }: UnlockPromptProps) {
     return (
         <div className="flex items-center justify-between p-6 bg-indigo-900 rounded-3xl text-white shadow-xl shadow-indigo-900/20">
             <div className="flex items-center gap-4">
@@ -56,10 +50,10 @@ export function UpgradePrompt({ message }: UpgradePromptProps) {
                 </div>
             </div>
             <button
-                onClick={() => navigate('/billing')}
-                className="px-6 py-3 bg-white text-indigo-900 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-50 transition-colors shrink-0"
+                disabled={true}
+                className="px-6 py-3 bg-white/10 text-white/50 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] cursor-not-allowed border border-white/10"
             >
-                Upgrade
+                Coming Soon
             </button>
         </div>
     );

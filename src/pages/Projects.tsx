@@ -1,10 +1,14 @@
 
-import { useState, useEffect } from 'react';
+
+import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useProject } from '../hooks/useProject';
-import { api } from '../lib/api';
-import { Folder, Plus, Trash2, Check, Loader2, MousePointer2, Clock, Terminal, ArrowRight } from 'lucide-react';
+import { useOptimizedFetch, invalidateCache } from '../hooks/useOptimizedFetch';
+import { Folder, Plus, Trash2, Check, Loader2, MousePointer2, Clock, Terminal, ArrowRight, Beaker } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AboutBetaModal } from '../components/beta/AboutBetaModal';
+import { FeedbackNudge } from '../components/beta/FeedbackNudge';
+import { api } from '../lib/api';
 
 interface Project {
     id: string;
@@ -17,32 +21,30 @@ interface Project {
 export function Projects() {
     const navigate = useNavigate();
     const { projectId: currentProjectId, switchProject } = useProject();
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [loading, setLoading] = useState(true);
 
     // New Project Form
     const [newName, setNewName] = useState('');
     const [newType, setNewType] = useState('sql');
     const [creating, setCreating] = useState(false);
+    const [showBetaLimit, setShowBetaLimit] = useState(false);
 
-    const fetchProjects = async () => {
-        setLoading(true);
-        try {
-            const { data } = await supabase
-                .from('projects')
-                .select('*')
-                .order('created_at', { ascending: false });
-            if (data) setProjects(data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchProjects();
+    // Optimized data fetching with caching
+    const fetchProjects = useCallback(async () => {
+        const { data } = await supabase
+            .from('projects')
+            .select('*')
+            .order('created_at', { ascending: false });
+        return data || [];
     }, []);
+
+    const { data, loading, refetch } = useOptimizedFetch<Project[]>(
+        'projects-list',
+        fetchProjects,
+        { cacheTime: 2 * 60 * 1000 } // Cache for 2 minutes
+    );
+
+    // Ensure projects is always an array
+    const projects: Project[] = data ?? [];
 
 
     const handleCreate = async () => {
@@ -51,38 +53,44 @@ export function Projects() {
         try {
             console.log('Creating project:', { name: newName, type: newType });
 
-            // Check usage limit (simple frontend check)
-            // Limit: 1 project for free users (if logic requires it) - skipping rigid enforcement to ensure functionality first
+            // Get current user
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError || !user) throw new Error('Not authenticated');
 
-            // 1. Create Project
-            const { data: project, error: pErr } = await supabase
-                .from('projects')
-                .insert({
-                    name: newName,
-                    schema_type: newType,
-                    owner_id: (await supabase.auth.getUser()).data.user?.id,
-                    current_step: 'schema'
-                })
-                .select()
+            // Get user's workspace
+            const { data: workspace, error: workspaceError } = await supabase
+                .from('workspaces')
+                .select('id')
+                .eq('owner_id', user.id)
                 .single();
 
-            if (pErr) throw pErr;
+            if (workspaceError || !workspace) {
+                throw new Error('No workspace found. Please complete onboarding first.');
+            }
 
-            // 2. Create Default Subscription
-            await supabase.from('subscriptions').insert({
-                project_id: project.id,
-                plan_id: 'free',
-                status: 'active'
-            });
+            // Create Project via Backend API (Enforces limits)
+
+            // Create Project via Backend API (Enforces limits)
+            const project = await api.createProject(newName, newType, workspace.id, user.id);
 
             console.log('Project created:', project);
+
+            // Invalidate cache to show new project
+            invalidateCache('projects-list');
+            invalidateCache(`workspace-usage-${workspace.id}`);
 
             // Navigate to workspace-scoped schema input
             navigate(`/workspace/${project.id}/schema-input`);
         } catch (err: any) {
             console.error("Create project error:", err);
-            const msg = err.message || "Unknown error";
-            alert(`Failed to create project: ${msg}`);
+            const serverMsg = err.response?.data?.message || err.response?.data?.error;
+            const msg = serverMsg || err.message || "Unknown error";
+
+            if (err.response?.status === 403) {
+                alert(msg);
+            } else {
+                alert(`Failed to create project: ${msg}`);
+            }
         } finally {
             setCreating(false);
         }
@@ -92,18 +100,24 @@ export function Projects() {
         if (!confirm("Are you sure? This will delete all versions, documentation, and metadata for this project. This action is irreversible.")) return;
         try {
             console.log(`[Projects] Requesting deletion for project: ${id}`);
+
+            // Delete project via Backend API
+            // This ensures all server-side cleanup and potentially addresses ghost project issues
             await api.deleteProject(id);
+
+            // Invalidate cache
+            invalidateCache('projects-list');
 
             if (id === currentProjectId) {
                 // If we deleted the active project, clear the session area
                 navigate('/projects');
                 window.location.reload(); // Force refresh to clear project context
             } else {
-                fetchProjects();
+                refetch();
             }
         } catch (err: any) {
             console.error("[Projects] Delete failed:", err);
-            alert(`Failed to delete project: ${err.response?.data?.error || err.message}`);
+            alert(`Failed to delete project: ${err.message || 'Unknown error'}`);
         }
     };
 
@@ -118,6 +132,56 @@ export function Projects() {
                 <p className="text-gray-500 max-w-lg mx-auto">
                     Start a new database clarity journey or switch between existing projects.
                 </p>
+            </div>
+
+            {/* Beta Usage Banner */}
+            <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-3xl p-1 shadow-xl shadow-indigo-100/50">
+                <div className="bg-white rounded-[calc(1.5rem-4px)] p-6 flex flex-wrap items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-indigo-50 p-3 rounded-2xl ring-4 ring-indigo-50">
+                            <Beaker className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-black text-gray-900 leading-tight text-lg">Beta Access Active</h3>
+                                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wide">
+                                    Free Plan (Override)
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium mt-1">
+                                You have full access to Vizora features during the private beta period.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-8">
+                        {/* Limits Badges */}
+                        <div className="hidden sm:flex items-center gap-3">
+                            <div className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wide">Max 4 Versions / Project</span>
+                            </div>
+                        </div>
+
+                        <div className="h-8 w-px bg-slate-100 hidden sm:block"></div>
+
+                        {/* Project Counter */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-tight text-slate-400">
+                                <span>Active Projects</span>
+                                <span className={projects.length >= 2 ? "text-amber-500" : "text-indigo-600"}>
+                                    {projects.length} / 2
+                                </span>
+                            </div>
+                            <div className="w-32 h-2.5 bg-slate-100 rounded-full overflow-hidden p-[2px]">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-500 ${projects.length >= 2 ? 'bg-amber-500' : 'bg-indigo-600'}`}
+                                    style={{ width: `${Math.min((projects.length / 2) * 100, 100)}%` }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Create Section */}
@@ -252,6 +316,17 @@ export function Projects() {
                     </div>
                 )}
             </div>
+
+            {showBetaLimit && (
+                <>
+                    <AboutBetaModal
+                        onClose={() => setShowBetaLimit(false)}
+                        limitReached={true}
+                        type="project"
+                    />
+                    <FeedbackNudge context="limit_hit" delay={1000} />
+                </>
+            )}
         </div>
     );
 }

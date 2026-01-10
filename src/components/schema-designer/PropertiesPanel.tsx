@@ -43,7 +43,7 @@ export function PropertiesPanel({
     };
 
     return (
-        <div className="w-[360px] h-full bg-white border-l border-slate-200 flex flex-col shadow-xl z-20 shrink-0 animate-in slide-in-from-right duration-200">
+        <div className="absolute top-0 right-0 w-[360px] h-full bg-white border-l border-slate-200 flex flex-col shadow-xl z-20 shrink-0 animate-in slide-in-from-right duration-200">
             {/* Header */}
             <div className="h-14 border-b border-slate-100 flex items-center justify-between px-6 bg-slate-50/50">
                 <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Properties</span>
@@ -128,19 +128,22 @@ function ColumnEditor({
     const [isExpanded, setIsExpanded] = useState(false);
     const [data, setData] = useState({ ...column, name: colName });
 
+    useEffect(() => {
+        setData({ ...column, name: colName });
+    }, [column, colName]);
+
     const handleChange = (field: keyof UnifiedColumn | 'name', value: any) => {
         const newData = { ...data, [field]: value };
         setData(newData);
-        // Auto save on boolean toggles or select changes? 
-        // Ideally we wait for blur on text fields, but immediate for checkboxes.
-        if (field !== 'name' && field !== 'type') {
-            // For simplicity, constructing the object to pass back
+        // Auto save on boolean toggles OR type changes.
+        // We only wait for blur on the name field.
+        if (field !== 'name') {
             const { name, ...rest } = newData;
             onUpdate(colName, name, rest);
         }
     };
 
-    // For name/type, save on blur or specific action to avoid jitter
+    // For name, save on blur to avoid jitter
     const handleCommit = () => {
         const { name, ...rest } = data;
         onUpdate(colName, name, rest);
@@ -149,10 +152,12 @@ function ColumnEditor({
     return (
         <div className={`bg-slate-50 border border-slate-200 rounded-xl transition-all ${isExpanded ? 'shadow-md ring-1 ring-slate-200' : ''}`}>
             {/* Condensed Row */}
-            <div className="flex items-center gap-2 p-3">
+            <div
+                className="flex items-center gap-2 p-3 cursor-pointer hover:bg-slate-100/50 transition-colors"
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
                 <div
-                    className="cursor-pointer p-1 text-slate-400 hover:text-slate-600"
-                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="p-1 text-slate-400 hover:text-slate-600"
                 >
                     <RefreshCw className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                 </div>
@@ -161,6 +166,7 @@ function ColumnEditor({
                     value={data.name}
                     onChange={(e) => handleChange('name', e.target.value)}
                     onBlur={handleCommit}
+                    onClick={(e) => e.stopPropagation()}
                     className="flex-1 bg-transparent text-xs font-bold text-slate-700 outline-none min-w-0"
                 />
 
@@ -170,7 +176,10 @@ function ColumnEditor({
 
                 {data.primary && <Key className="h-3 w-3 text-amber-500" />}
 
-                <button onClick={onDelete} className="text-slate-300 hover:text-red-500 ml-1">
+                <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    className="text-slate-300 hover:text-red-500 ml-1"
+                >
                     <Trash2 className="h-3 w-3" />
                 </button>
             </div>
@@ -182,7 +191,7 @@ function ColumnEditor({
                         <label className="text-[10px] font-bold text-slate-400 uppercase">Type</label>
                         <select
                             value={data.type}
-                            onChange={(e) => { handleChange('type', e.target.value); handleCommit(); }} // commit immediately
+                            onChange={(e) => handleChange('type', e.target.value)}
                             className="w-full mt-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-medium outline-none"
                         >
                             <option value="uuid">UUID</option>

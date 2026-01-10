@@ -1,8 +1,10 @@
 import { useState, ReactNode, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useProject } from '../hooks/useProject';
 import { Sidebar } from '../components/Sidebar';
 import { Menu, X, Database } from 'lucide-react';
+
+import { FeedbackButton } from '../components/beta/FeedbackButton';
 
 interface ProjectLayoutProps {
     children: ReactNode;
@@ -11,14 +13,15 @@ interface ProjectLayoutProps {
 export function ProjectLayout({ children }: ProjectLayoutProps) {
     const { projectId, project, loading } = useProject();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     useEffect(() => {
-        if (!loading && !projectId) {
+        if (!loading && !projectId && location.pathname !== '/projects') {
             navigate('/projects', { replace: true });
         }
-    }, [projectId, loading, navigate]);
+    }, [projectId, loading, navigate, location.pathname]);
 
     if (loading) {
         return (
@@ -69,6 +72,8 @@ export function ProjectLayout({ children }: ProjectLayoutProps) {
                     {children}
                 </div>
             </div>
+
+            <FeedbackButton />
         </div>
     );
 }

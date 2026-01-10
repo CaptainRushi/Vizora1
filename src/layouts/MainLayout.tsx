@@ -2,6 +2,8 @@ import { ReactNode, useState } from 'react';
 import { GlobalSidebar } from '../components/GlobalSidebar';
 import { Menu, X } from 'lucide-react';
 
+import { FeedbackButton } from '../components/beta/FeedbackButton';
+
 interface MainLayoutProps {
     children: ReactNode;
 }
@@ -54,6 +56,8 @@ export function MainLayout({ children }: MainLayoutProps) {
                     </div>
                 </main>
             </div>
+
+            <FeedbackButton />
         </div>
     );
 }

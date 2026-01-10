@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import axios from 'axios';
 import {
     User,
     CreditCard,
@@ -16,7 +15,8 @@ import {
     Plus,
     Trash2,
     Copy,
-    Ban
+    Ban,
+    Beaker
 } from 'lucide-react';
 import { InviteModal } from '../components/dashboard/InviteModal';
 import { DeleteAccountModal } from '../components/dashboard/DeleteAccountModal';
@@ -73,6 +73,8 @@ export function UserDashboard() {
     const [loading, setLoading] = useState(true);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [betaUsage, setBetaUsage] = useState<any>(null);
+    const [betaConfig, setBetaConfig] = useState<any>(null);
 
     useEffect(() => {
         fetchDashboardData();
@@ -84,58 +86,147 @@ export function UserDashboard() {
         setLoading(true);
         try {
             // 1. Fetch Key Workspace Data
-            // We use the new endpoints we created
-            const { data: wsData } = await axios.get(`http://localhost:3001/workspaces/current?userId=${user.id}`);
-            setWorkspace(wsData);
+            // Owners first
+            let { data: wsData } = await supabase
+                .from('workspaces')
+                .select('*')
+                .eq('owner_id', user.id)
+                .maybeSingle();
 
-            if (wsData) {
-                // Fetch Members
-                const { data: memData } = await axios.get(`http://localhost:3001/workspaces/${wsData.id}/members`);
-                setTeamMembers(memData.members);
+            let role: 'admin' | 'member' = 'admin';
 
-                // Fetch Invites (if admin)
-                if (wsData.role === 'admin') {
-                    const { data: invData } = await axios.get(`http://localhost:3001/workspaces/${wsData.id}/invites`);
-                    setInvites(invData);
+            // If not owner, check membership
+            if (!wsData) {
+                const { data: membership } = await supabase
+                    .from('workspace_members')
+                    .select('workspace_id, role')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+
+                if (membership) {
+                    const { data: w } = await supabase.from('workspaces').select('*').eq('id', membership.workspace_id).single();
+                    if (w) {
+                        wsData = w;
+                        role = membership.role as 'admin' | 'member';
+                    }
                 }
             }
 
-            // 2. Fetch Usage (Standard Supabase calls for projects)
-            const { data: projects } = await supabase
-                .from('projects')
-                .select('id, created_at')
-                .eq('owner_id', user.id); // Note: Simple check, real app might need workspace scoping
+            // Create default if still none
+            if (!wsData) {
+                const { data: newWs, error: cErr } = await supabase
+                    .from('workspaces')
+                    .insert({
+                        name: "Personal Workspace",
+                        type: "personal",
+                        owner_id: user.id
+                    })
+                    .select()
+                    .single();
 
-            const { data: versions } = await supabase
-                .from('schema_versions')
-                .select('id, normalized_schema, created_at')
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-            let totalTables = 0;
-            let lastUpdate = null;
-
-            if (versions && versions.length > 0) {
-                const schema = versions[0].normalized_schema as any;
-                totalTables = Object.keys(schema?.tables || {}).length;
-                lastUpdate = versions[0].created_at;
+                if (cErr) throw cErr;
+                wsData = newWs;
+                role = 'admin';
             }
 
-            setUsage({
-                totalProjects: projects?.length || 0,
-                totalVersions: versions?.length || 0,
-                totalTables,
-                lastUpdate
-            });
+            if (wsData) {
+                setWorkspace({ ...wsData, role });
 
-            // Mock Billing (could be fetched from Stripe/Subscription table)
-            setBilling({
-                plan: wsData?.type === 'team' ? 'team' : 'free', // rudimentary mapping
-                cycle: 'monthly',
-                price: wsData?.type === 'team' ? 49 : 0,
-                renewalDate: new Date(Date.now() + 86400000 * 15).toISOString(),
-                status: 'active'
-            });
+                // Parallelize all secondary dashboard lookups
+                const [
+                    membersResult,
+                    invitesResult,
+                    billingResult,
+                    projectsResult
+                ] = await Promise.all([
+                    // A. Fetch Members
+                    supabase.from('workspace_members')
+                        .select('user_id, role, joined_at, id')
+                        .eq('workspace_id', wsData.id),
+                    // B. Fetch Invites (Conditional if admin)
+                    role === 'admin'
+                        ? supabase.from('workspace_invites')
+                            .select('*')
+                            .eq('workspace_id', wsData.id)
+                            .eq('revoked', false)
+                            .gt('expires_at', new Date().toISOString())
+                        : Promise.resolve({ data: [] }),
+                    // C. Fetch Billing Info
+                    supabase.from('workspace_billing')
+                        .select('plan_id, status, expires_at')
+                        .eq('workspace_id', wsData.id)
+                        .maybeSingle(),
+                    // D. Fetch Usage (Workspace scoped projects)
+                    supabase.from('projects')
+                        .select('id, created_at')
+                        .eq('workspace_id', wsData.id)
+                ]);
+
+                // Handle Members
+                setTeamMembers(membersResult.data || []);
+
+                // Handle Invites
+                setInvites(invitesResult.data || []);
+
+                // Handle Billing
+                const billingData = billingResult.data;
+                setBilling({
+                    plan: (billingData?.plan_id as any) || 'free',
+                    cycle: 'monthly',
+                    price: billingData?.plan_id === 'teams' ? 4999 : billingData?.plan_id === 'pro' ? 1499 : 0,
+                    renewalDate: billingData?.expires_at || null,
+                    status: (billingData?.status as any) || 'active'
+                });
+
+                // Handle Usage Statistics
+                const projects = projectsResult.data;
+                const projectIds = projects?.map(p => p.id) || [];
+
+                let totalVersions = 0;
+                let totalTables = 0;
+                let lastUpdate = null;
+
+                if (projectIds.length > 0) {
+                    // This is the last sequential step as it depends on projectIds
+                    const { data: versions } = await supabase
+                        .from('schema_versions')
+                        .select('id, normalized_schema, created_at')
+                        .in('project_id', projectIds)
+                        .order('created_at', { ascending: false });
+
+                    totalVersions = versions?.length || 0;
+                    if (versions && versions.length > 0) {
+                        const schema = versions[0].normalized_schema as any;
+                        totalTables = Object.keys(schema?.tables || {}).length;
+                        lastUpdate = versions[0].created_at;
+                    }
+                }
+
+                setUsage({
+                    totalProjects: projects?.length || 0,
+                    totalVersions,
+                    totalTables,
+                    lastUpdate
+                });
+            }
+
+            // 3. Fetch Beta Stats (Direct from Supabase)
+            // We hardcode the config since it's just a few constants
+            const bConfig = {
+                beta_mode: true,
+                beta_project_limit: 2,
+                beta_version_limit: 5,
+                beta_label: "Private Beta"
+            };
+            setBetaConfig(bConfig);
+
+            const { data: bUsage } = await supabase
+                .from('beta_usage')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            setBetaUsage(bUsage);
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -146,14 +237,15 @@ export function UserDashboard() {
 
     const revokeInvite = async (inviteId: string) => {
         try {
-            await axios.post(`http://localhost:3001/workspaces/invite/revoke`, { inviteId });
-            // Refresh
-            if (workspace) {
-                const { data } = await axios.get(`http://localhost:3001/workspaces/${workspace.id}/invites`);
-                setInvites(data);
-            }
-        } catch (err) {
-            console.error(err);
+            const { error } = await supabase
+                .from('workspace_invites')
+                .update({ revoked: true })
+                .eq('id', inviteId);
+
+            if (error) throw error;
+            await fetchDashboardData();
+        } catch (err: any) {
+            alert('Failed to revoke: ' + err.message);
         }
     };
 
@@ -162,23 +254,6 @@ export function UserDashboard() {
         return name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
     };
 
-    const handleUpgrade = async () => {
-        if (!workspace || !user) return;
-
-        const confirmed = window.confirm("Upgrade to Team Workspace? This will allow you to invite members.");
-        if (!confirmed) return;
-
-        try {
-            await axios.post(`http://localhost:3001/workspaces/${workspace.id}/upgrade`, {
-                userId: user.id
-            });
-            // Refresh data to show team view
-            fetchDashboardData();
-        } catch (err) {
-            console.error("Upgrade failed:", err);
-            alert("Failed to upgrade workspace. Please try again.");
-        }
-    };
 
     if (loading) {
         return (
@@ -219,7 +294,7 @@ export function UserDashboard() {
                     </div>
                 </section>
 
-                {/* 2. TEAM SECTION (Only for Team Workspaces or Admin Upgrades) */}
+                {/* 2. TEAM SECTION (Only for Team Workspaces or Admin Unlocks) */}
                 <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                     <div className="p-8 border-b border-gray-100">
                         <div className="flex items-center justify-between mb-2">
@@ -241,19 +316,19 @@ export function UserDashboard() {
                     </div>
 
                     {workspace?.type !== 'team' ? (
-                        /* SOLO VIEW -> UPGRADE CTA */
+                        /* SOLO VIEW -> UNLOCK CTA */
                         <div className="p-8 text-center bg-gray-50/50">
                             <div className="max-w-md mx-auto">
                                 <Shield className="w-12 h-12 text-indigo-200 mx-auto mb-4" />
-                                <h3 className="text-lg font-bold text-gray-900 mb-2">Upgrade to Team Workspace</h3>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">Unlock Team Workspace</h3>
                                 <p className="text-sm text-gray-500 mb-6">
                                     Collaborate with your team, share schemas, and manage permissions.
                                 </p>
                                 <button
-                                    onClick={handleUpgrade}
-                                    className="px-6 py-2.5 bg-gray-900 text-white font-bold text-sm rounded-xl hover:bg-black transition-colors"
+                                    disabled={true}
+                                    className="px-6 py-2.5 bg-gray-100 text-gray-400 font-bold text-[10px] uppercase tracking-widest rounded-xl cursor-not-allowed border border-gray-200"
                                 >
-                                    Upgrade to Team
+                                    Team Access: Coming Soon
                                 </button>
                             </div>
                         </div>
@@ -392,6 +467,66 @@ export function UserDashboard() {
                     </div>
                 </section>
 
+                {/* 3.5 PRIVATE BETA STATUS */}
+                {betaConfig?.beta_mode && (
+                    <section className="bg-indigo-900 rounded-3xl p-8 text-white relative overflow-hidden shadow-2xl">
+                        <div className="absolute top-0 right-0 p-8 opacity-10">
+                            <Beaker className="w-32 h-32 rotate-12" />
+                        </div>
+
+                        <div className="relative z-10 space-y-8">
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                    <h2 className="text-xl font-black tracking-tight">Private Beta Status</h2>
+                                    <p className="text-indigo-300 text-sm font-medium">Your activity during the early access period</p>
+                                </div>
+                                <span className="px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-[10px] font-black uppercase tracking-widest">
+                                    {betaConfig.label}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-indigo-200">
+                                        <span>Projects Created</span>
+                                        <span className="text-white">{betaUsage?.projects_created || 0} / {betaConfig.project_limit}</span>
+                                    </div>
+                                    <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-white rounded-full transition-all duration-700 ease-out"
+                                            style={{ width: `${Math.min(((betaUsage?.projects_created || 0) / betaConfig.project_limit) * 100, 100)}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-indigo-200">
+                                        <span>Schema Versions</span>
+                                        <span className="text-white">{betaUsage?.versions_created || 0} / (5 per project)</span>
+                                    </div>
+                                    <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-white rounded-full transition-all duration-700 ease-out"
+                                            style={{ width: `${Math.min(((betaUsage?.versions_created || 0) / (betaConfig.project_limit * 5)) * 100, 100)}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-white/10 flex flex-wrap gap-6">
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                    <span className="text-xs font-bold text-indigo-100">{betaUsage?.diagrams_viewed || 0} Diagrams Viewed</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                    <span className="text-xs font-bold text-indigo-100">{betaUsage?.docs_generated || 0} Docs Generated</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                )}
+
                 {/* 4. BILLING & PLAN */}
                 <section className="bg-white rounded-2xl border border-gray-200 p-8">
                     <div className="flex items-center gap-3 mb-6">
@@ -455,9 +590,20 @@ export function UserDashboard() {
                     onInviteGenerated={() => {
                         // Refresh invites list
                         if (workspace.id) {
-                            axios.get(`http://localhost:3001/workspaces/${workspace.id}/invites`)
-                                .then(({ data }) => setInvites(data))
-                                .catch(console.error);
+                            const fetchInvites = async () => {
+                                try {
+                                    const { data } = await supabase
+                                        .from('workspace_invites')
+                                        .select('*')
+                                        .eq('workspace_id', workspace.id)
+                                        .eq('revoked', false)
+                                        .gt('expires_at', new Date().toISOString());
+                                    setInvites(data || []);
+                                } catch (err) {
+                                    console.error(err);
+                                }
+                            };
+                            fetchInvites();
                         }
                     }}
                 />

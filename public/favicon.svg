@@ -1,6 +1,9 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="9" cy="9" r="6" fill="#0F172A"/>
-  <circle cx="23" cy="9" r="6" fill="#0F172A" fill-opacity="0.2"/>
-  <circle cx="9" cy="23" r="6" fill="#0F172A" fill-opacity="0.2"/>
-  <circle cx="23" cy="23" r="6" fill="#0F172A"/>
+  <!-- Dark background -->
+  <rect width="32" height="32" rx="6" fill="#0F172A"/>
+  <!-- White dots with faint opacity variations -->
+  <circle cx="9" cy="9" r="3.5" fill="#FFFFFF"/>
+  <circle cx="23" cy="9" r="3.5" fill="#FFFFFF" fill-opacity="0.3"/>
+  <circle cx="9" cy="23" r="3.5" fill="#FFFFFF" fill-opacity="0.3"/>
+  <circle cx="23" cy="23" r="3.5" fill="#FFFFFF"/>
 </svg>

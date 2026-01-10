@@ -32,9 +32,9 @@ export function Hero() {
 
       {/* Top Navigation */}
       <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-between px-6 sm:px-12 z-20">
-        <div className="flex items-center gap-2 group cursor-pointer" onClick={() => navigate('/')}>
-          <Logo size={24} animated={false} />
-          <span className="text-xl font-bold text-slate-900 tracking-tight">Vizora</span>
+        <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate('/')}>
+          <Logo size={40} animated={false} withBackground={true} />
+          <span className="vizora-brand text-2xl font-bold text-slate-900 tracking-tight">Vizora</span>
         </div>
 
         <div>

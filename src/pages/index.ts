@@ -1,4 +1,5 @@
 
+
 export * from './Overview';
 export * from './ERDiagrams';
 export * from './SchemaInput';
@@ -19,3 +20,5 @@ export * from './TeamMembers';
 export * from './InviteAccept';
 export * from './Billing';
 export * from './OnboardingForm';
+export * from './Help';
+

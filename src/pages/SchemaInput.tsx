@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Terminal,
     RefreshCw,
@@ -9,8 +8,11 @@ import {
     ArrowRight
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { useProject } from '../hooks/useProject';
 import { useNavigate } from 'react-router-dom';
+import { AboutBetaModal } from '../components/beta/AboutBetaModal';
+import { FeedbackNudge } from '../components/beta/FeedbackNudge';
 
 export function SchemaInput() {
     const { projectId } = useProject();
@@ -20,6 +22,20 @@ export function SchemaInput() {
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [warnings, setWarnings] = useState<string[]>([]);
+    const [showBetaLimit, setShowBetaLimit] = useState(false);
+    const [versionCount, setVersionCount] = useState(0);
+
+    useEffect(() => {
+        if (projectId) {
+            supabase
+                .from('schema_versions')
+                .select('id')
+                .eq('project_id', projectId)
+                .then(({ data }) => {
+                    setVersionCount(data?.length || 0);
+                });
+        }
+    }, [projectId]);
 
     const handleImport = async () => {
         if (!projectId || !rawSchema) return;
@@ -37,6 +53,9 @@ export function SchemaInput() {
             if (res.error) throw new Error(res.error);
 
             setSuccess(true);
+            setVersionCount(prev => prev + 1);
+
+
             if (res.warnings && res.warnings.length > 0) {
                 setWarnings(res.warnings);
             }
@@ -45,14 +64,10 @@ export function SchemaInput() {
             const msg = err.response?.data?.error || err.message || 'Failed to parse schema';
 
             if (err.response?.status === 400) {
-                // It's a validation error from the backend
                 setError(msg);
-            } else if (err.response?.status === 403 && msg.includes("limit")) {
-                if (confirm(`Version Limit Reached!\n\n${err.response.data.message}\n\nWould you like to upgrade to Pro for more history?`)) {
-                    navigate('/billing');
-                }
+            } else if (err.response?.status === 403 && (msg.includes("limit") || msg.includes("Beta"))) {
+                setShowBetaLimit(true);
             } else {
-                // Network or server error
                 setError(`Server Error: ${msg}. Please check the server logs.`);
             }
         } finally {
@@ -81,101 +96,98 @@ export function SchemaInput() {
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="h-2 w-2 rounded-full bg-green-500" />
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ready to Parse</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Live Parser Active</span>
                         </div>
                     </div>
 
                     <div className="p-8 space-y-6">
-                        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-3">
-                            <div className="shrink-0 mt-0.5">
-                                <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-xs font-bold text-indigo-900 leading-relaxed">
-                                    Pasting a new schema replaces the current diagram. Previous versions are preserved in Version History.
-                                </p>
-                            </div>
+                        <div className="relative group">
+                            <textarea
+                                value={rawSchema}
+                                onChange={(e) => setRawSchema(e.target.value)}
+                                placeholder="Paste your SQL (Postgres), Prisma schema, or Drizzle schema here..."
+                                className="w-full h-[320px] p-6 text-sm font-mono bg-slate-900 text-slate-300 rounded-2xl border-2 border-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none resize-none"
+                            />
+                            {!rawSchema && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                                    <Terminal className="w-20 h-20 text-slate-400" />
+                                </div>
+                            )}
                         </div>
 
-                        <textarea
-                            className="w-full h-80 p-6 bg-slate-900 text-indigo-100 text-xs font-mono rounded-2xl focus:ring-4 focus:ring-indigo-500/10 outline-none resize-none border-0 shadow-inner"
-                            placeholder={"-- Paste your SQL DDL here...\nCREATE TABLE users (\n  id UUID PRIMARY KEY,\n  email TEXT UNIQUE\n);"}
-                            value={rawSchema}
-                            onChange={(e) => setRawSchema(e.target.value)}
-                        />
+                        {error && (
+                            <div className="flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 animate-in shake duration-300">
+                                <AlertCircle className="h-5 w-5 shrink-0" />
+                                <p className="text-sm font-medium">{error}</p>
+                            </div>
+                        )}
 
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                                {error && (
-                                    <div className="flex items-center gap-2 text-red-600 animate-in fade-in duration-300">
-                                        <AlertCircle className="h-4 w-4 shrink-0" />
-                                        <p className="text-xs font-bold leading-none">{error}</p>
-                                    </div>
-                                )}
-                                {warnings.length > 0 && (
-                                    <div className="flex items-center gap-2 text-amber-600 animate-in fade-in duration-300">
-                                        <AlertCircle className="h-4 w-4 shrink-0" />
-                                        <p className="text-xs font-bold leading-none">{warnings.join('; ')}</p>
-                                    </div>
-                                )}
+                        {warnings.length > 0 && (
+                            <div className="p-4 bg-amber-50 text-amber-700 rounded-xl border border-amber-100 space-y-2">
+                                <p className="text-xs font-bold uppercase tracking-wider">Parser Warnings</p>
+                                <ul className="text-sm space-y-1">
+                                    {warnings.map((w, i) => (
+                                        <li key={i} className="flex gap-2">
+                                            <span className="opacity-50">•</span>
+                                            {w}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                            <div className="text-xs text-slate-400 font-medium">
+                                {versionCount > 0 ? `${versionCount} versions saved` : 'No versions yet'}
+                            </div>
+                            <div className="flex items-center gap-4">
                                 {success && (
-                                    <div className="flex flex-col gap-4 animate-in fade-in duration-300">
-                                        <div className="flex items-center gap-2 text-green-600">
-                                            <Check className="h-4 w-4 shrink-0" />
-                                            <p className="text-xs font-bold leading-none">Schema ingested successfully! Version committed.</p>
-                                        </div>
+                                    <div className="flex items-center gap-2 text-green-600 animate-in fade-in slide-in-from-right-2">
+                                        <Check className="h-4 w-4" />
+                                        <span className="text-sm font-bold">Schema Ingested</span>
                                         <button
-                                            onClick={() => navigate(`/workspace/${projectId}/explanations`)}
-                                            className="flex items-center gap-2 text-indigo-600 font-black text-[10px] uppercase tracking-widest hover:underline"
+                                            onClick={() => navigate(`/workspace/${projectId}/er-diagram`)}
+                                            className="ml-4 flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-black text-xs uppercase tracking-widest"
                                         >
-                                            View AI Insights <ArrowRight className="h-3 w-3" />
+                                            View AI Insights
+                                            <ArrowRight className="h-3 w-3" />
                                         </button>
                                     </div>
                                 )}
+                                <button
+                                    onClick={handleImport}
+                                    disabled={loading || !rawSchema}
+                                    className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-200"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <RefreshCw className="h-4 w-4 animate-spin" />
+                                            Parsing Schema...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Save & Generate
+                                            <ArrowRight className="h-4 w-4" />
+                                        </>
+                                    )}
+                                </button>
                             </div>
-
-                            <button
-                                onClick={handleImport}
-                                disabled={loading || !rawSchema}
-                                className={`
-                                    flex items-center gap-2 px-8 py-4 rounded-2xl font-bold transition-all
-                                    ${loading ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white shadow-xl shadow-slate-200 hover:bg-slate-800 active:scale-95'}
-                                    disabled:opacity-50
-                                `}
-                            >
-                                {loading ? (
-                                    <RefreshCw className="h-5 w-5 animate-spin" />
-                                ) : (
-                                    <>
-                                        Parse & Generate
-                                        <ArrowRight className="h-4 w-4" />
-                                    </>
-                                )}
-                            </button>
                         </div>
                     </div>
                 </div>
-
-                <div className="grid grid-cols-3 gap-6">
-                    <div className="p-6 bg-white border border-slate-200 rounded-2xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Step 1</span>
-                        <h4 className="text-sm font-bold text-slate-900 mb-1">Paste Code</h4>
-                        <p className="text-xs text-slate-500 leading-relaxed font-medium">SQL DDL, Prisma schema, or Drizzle definitions.</p>
-                    </div>
-                    <div className="p-6 bg-white border border-slate-200 rounded-2xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Step 2</span>
-                        <h4 className="text-sm font-bold text-slate-900 mb-1">Internal Normalization</h4>
-                        <p className="text-xs text-slate-500 leading-relaxed font-medium">We convert it to our single source of truth model.</p>
-                    </div>
-                    <div className="p-6 bg-white border border-slate-200 rounded-2xl">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Step 3</span>
-                        <h4 className="text-sm font-bold text-slate-900 mb-1">Visual Refresh</h4>
-                        <p className="text-xs text-slate-500 leading-relaxed font-medium">Your diagrams and docs are updated instantly.</p>
-                    </div>
-                </div>
             </div>
+
+            {success && (
+                <FeedbackNudge context="schema_paste" delay={3000} />
+            )}
+
+            {showBetaLimit && (
+                <AboutBetaModal
+                    onClose={() => setShowBetaLimit(false)}
+                    limitReached={true}
+                    type="version"
+                />
+            )}
         </div>
     );
 }

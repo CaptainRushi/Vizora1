@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Folder, PenTool, CreditCard, Settings, HelpCircle, LogOut, Github, Chrome } from 'lucide-react';
+import { Folder, PenTool, CreditCard, Settings, HelpCircle, LogOut, Github, Chrome, MessageSquarePlus } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
+import { FeedbackPrompt } from './beta/FeedbackPrompt';
 
 interface GlobalSidebarProps {
     isMobileOpen?: boolean;
@@ -11,6 +13,7 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, signOut } = useAuth();
+    const [showFeedback, setShowFeedback] = useState(false);
 
     const navItems = [
         { icon: Folder, label: 'Projects', path: '/projects' },
@@ -45,10 +48,8 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                     onClick={() => navigate('/')}
                     className="flex items-center gap-3 min-w-0 hover:bg-gray-50 p-1 rounded-xl transition-colors w-full"
                 >
-                    <div className="p-2 shrink-0">
-                        <Logo size={20} animated={true} />
-                    </div>
-                    <span className="font-bold text-sm text-gray-900 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    <Logo size={32} animated={true} withBackground={true} />
+                    <span className="vizora-brand font-bold text-base text-gray-900 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
                         Vizora
                     </span>
                 </button>
@@ -90,6 +91,16 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
             {/* Bottom Actions */}
             <div className="p-3 flex flex-col gap-2 mt-auto border-t border-gray-50">
                 <button
+                    onClick={() => setShowFeedback(true)}
+                    className="flex items-center h-10 px-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all group/feedback"
+                >
+                    <MessageSquarePlus className="h-5 w-5 shrink-0 transition-colors group-hover/feedback:rotate-12" strokeWidth={2} />
+                    <span className="ml-4 text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                        Give Feedback
+                    </span>
+                </button>
+
+                <button
                     onClick={() => navigate('/help')}
                     className="flex items-center h-10 px-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-all"
                 >
@@ -99,7 +110,6 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                     </span>
                 </button>
 
-                {/* User Panel */}
                 <div className="flex flex-col gap-2 mt-2">
                     <button
                         onClick={() => navigate('/account')}
@@ -138,6 +148,13 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                     </button>
                 </div>
             </div>
+
+            {showFeedback && (
+                <FeedbackPrompt
+                    onClose={() => setShowFeedback(false)}
+                    context="dashboard"
+                />
+            )}
         </aside>
     );
 }

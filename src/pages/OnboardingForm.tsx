@@ -101,6 +101,8 @@ export function OnboardingForm() {
         setError(null);
     };
 
+    const [isSuccess, setIsSuccess] = useState(false);
+
     const handleSubmit = async () => {
         if (!validateStep(currentStep)) return;
 
@@ -132,10 +134,6 @@ export function OnboardingForm() {
 
             if (memberError) throw memberError;
 
-            // 3. Billing state is automatically initialized by DB trigger
-            // We just skip manual insertion here.
-
-
             // 4. Update user profile
             const { error: profileError } = await supabase
                 .from('profiles')
@@ -149,19 +147,18 @@ export function OnboardingForm() {
 
             if (profileError) throw profileError;
 
-            // Success! Redirect to dashboard
-            navigate('/account', { replace: true });
+            // Success Transition
+            setIsSuccess(true);
+            setTimeout(() => {
+                navigate('/account', { replace: true });
+            }, 10000);
 
         } catch (err: any) {
             console.error('Onboarding error:', err);
-
             let errorMessage = err.message || 'Failed to complete onboarding. Please try again.';
-
-            // Specific RLS recursion error check
             if (err.code === '42P17') {
                 errorMessage = 'System configuration error (RLS Policy). Please report this code: 42P17.';
             }
-
             setError(errorMessage);
             setIsSubmitting(false);
         }
@@ -471,6 +468,28 @@ export function OnboardingForm() {
         }
     };
 
+    if (isSuccess) {
+        return (
+            <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-700">
+                <div className="w-24 h-24 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mb-8 animate-bounce transition-all duration-1000">
+                    <CheckCircle2 className="w-12 h-12" />
+                </div>
+
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-4 animate-in slide-in-from-bottom-4 duration-1000">
+                    Welcome to the beta version of Vizora
+                </h1>
+                <p className="text-slate-500 font-medium max-w-sm animate-in fade-in slide-in-from-bottom-2 duration-1000 delay-300">
+                    Your workspace is ready. Redirecting you to your dashboard...
+                </p>
+
+                <div className="mt-12 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <div className="w-4 h-4 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+                    Preparing your workspace
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
             <div className="w-full max-w-lg">
@@ -493,7 +512,7 @@ export function OnboardingForm() {
                 </div>
 
                 {/* Form Card */}
-                <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+                <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-10">
                     {renderStep()}
 
                     {/* Error Message */}
@@ -504,7 +523,7 @@ export function OnboardingForm() {
                     )}
 
                     {/* Navigation Buttons */}
-                    <div className="mt-8 flex items-center gap-3">
+                    <div className="mt-10 flex items-center gap-3">
                         {currentStep > 1 && (
                             <button
                                 onClick={prevStep}
@@ -533,12 +552,12 @@ export function OnboardingForm() {
                                 {isSubmitting ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        Completing...
+                                        Finalizing...
                                     </>
                                 ) : (
                                     <>
                                         <CheckCircle2 className="w-4 h-4" />
-                                        Complete Setup
+                                        Start Exploring
                                     </>
                                 )}
                             </button>
@@ -547,8 +566,8 @@ export function OnboardingForm() {
                 </div>
 
                 {/* Footer */}
-                <p className="mt-6 text-center text-xs text-gray-400">
-                    This information helps us personalize your experience
+                <p className="mt-8 text-center text-xs text-gray-400 font-medium">
+                    &copy; 2026 Vizora. All rights reserved. Beta Access.
                 </p>
             </div>
         </div>

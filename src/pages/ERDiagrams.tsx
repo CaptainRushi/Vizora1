@@ -17,6 +17,7 @@ import { Download, Sun, Moon, Maximize, Eye, EyeOff, Share2, RefreshCw, Key } fr
 import { useProject } from '../hooks/useProject';
 import { MacDots } from '../components/MacDots';
 import { supabase } from '../lib/supabase';
+import { FeedbackNudge } from '../components/beta/FeedbackNudge';
 
 // --- CUSTOM COMPONENTS ---
 
@@ -161,6 +162,7 @@ function ERDiagramsContent() {
 
                 setNodes(flowNodes);
                 setEdges(flowEdges);
+
             }
         } catch (err) {
             console.error("Failed to load diagram:", err);
@@ -215,7 +217,7 @@ function ERDiagramsContent() {
                         {
                             label: 'Export Diagram (PNG)', onClick: () => {
                                 if (!billing?.plan.export_enabled) {
-                                    alert("Upgrade to Pro to export diagrams.");
+                                    alert("Unlock Pro to export diagrams.");
                                     return;
                                 }
                                 alert('Exporting diagram...');
@@ -225,6 +227,10 @@ function ERDiagramsContent() {
                     ]}
                 />
             </div>
+
+            {!loading && nodes.length > 0 && (
+                <FeedbackNudge context="diagram" delay={5000} />
+            )}
         </div>
     );
 }

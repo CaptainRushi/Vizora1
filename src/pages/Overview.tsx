@@ -183,7 +183,7 @@ export function Overview() {
                     <p className="text-gray-500 font-medium">Paste your schema as SQL or Prisma to generate diagrams and documentation instantly.</p>
                 </div>
                 <button
-                    onClick={() => navigate('/input')}
+                    onClick={() => navigate('schema-input')}
                     className="flex items-center gap-3 rounded-2xl bg-indigo-600 px-10 py-4 text-sm font-black text-white hover:bg-indigo-700 shadow-2xl shadow-indigo-600/20 transition-all active:scale-95"
                 >
                     Paste Your First Schema

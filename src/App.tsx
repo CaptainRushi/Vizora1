@@ -1,33 +1,46 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { MainLayout } from './layouts/MainLayout';
 import { ProjectLayout } from './layouts/ProjectLayout';
-import {
-    ERDiagrams,
-    SchemaInput,
-    PlaceholderPage,
-    AiExplanations,
-    AutoDocs,
-    VersionHistory,
-    ChangeTracking,
-    Settings,
-    Projects,
-    SchemaDesigner,
-    Billing,
-    GlobalSettings,
-    Overview,
-    SchemaExplorer,
-    VersionCompare,
-    Comments,
-    UserDashboard,
-    OnboardingForm,
-    TeamMembers,
-    InviteAccept
-} from './pages';
-import { SignInPage } from './pages/auth/SignInPage';
 import { useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
 import { Hero } from './components/Hero';
+import { BetaWatermark } from './components/BetaWatermark';
+
+// Lazy load pages for code splitting
+const ERDiagrams = lazy(() => import('./pages/ERDiagrams').then(m => ({ default: m.ERDiagrams })));
+const SchemaInput = lazy(() => import('./pages/SchemaInput').then(m => ({ default: m.SchemaInput })));
+const AiExplanations = lazy(() => import('./pages/AiExplanations').then(m => ({ default: m.AiExplanations })));
+const AutoDocs = lazy(() => import('./pages/AutoDocs').then(m => ({ default: m.AutoDocs })));
+const VersionHistory = lazy(() => import('./pages/VersionHistory').then(m => ({ default: m.VersionHistory })));
+const ChangeTracking = lazy(() => import('./pages/ChangeTracking').then(m => ({ default: m.ChangeTracking })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const Projects = lazy(() => import('./pages/Projects').then(m => ({ default: m.Projects })));
+const SchemaDesigner = lazy(() => import('./pages/SchemaDesigner').then(m => ({ default: m.SchemaDesigner })));
+const Billing = lazy(() => import('./pages/Billing').then(m => ({ default: m.Billing })));
+const GlobalSettings = lazy(() => import('./pages/GlobalPages').then(m => ({ default: m.GlobalSettings })));
+const Overview = lazy(() => import('./pages/Overview').then(m => ({ default: m.Overview })));
+const SchemaExplorer = lazy(() => import('./pages/SchemaExplorer').then(m => ({ default: m.SchemaExplorer })));
+const VersionCompare = lazy(() => import('./pages/VersionCompare').then(m => ({ default: m.VersionCompare })));
+const Comments = lazy(() => import('./pages/Comments').then(m => ({ default: m.Comments })));
+const UserDashboard = lazy(() => import('./pages/UserDashboard').then(m => ({ default: m.UserDashboard })));
+const OnboardingForm = lazy(() => import('./pages/OnboardingForm').then(m => ({ default: m.OnboardingForm })));
+const TeamMembers = lazy(() => import('./pages/TeamMembers').then(m => ({ default: m.TeamMembers })));
+const InviteAccept = lazy(() => import('./pages/InviteAccept').then(m => ({ default: m.InviteAccept })));
+const Help = lazy(() => import('./pages/Help').then(m => ({ default: m.Help })));
+const SignInPage = lazy(() => import('./pages/auth/SignInPage').then(m => ({ default: m.SignInPage })));
+
+// Loading component
+function PageLoader() {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                <p className="text-sm text-gray-500 font-medium">Loading...</p>
+            </div>
+        </div>
+    );
+}
 
 /**
  * Guards routes that require authentication
@@ -139,65 +152,68 @@ function AuthRedirect() {
 function App() {
     return (
         <Router>
-            <Routes>
-                {/* Public Landing Page - Accessible to everyone */}
-                <Route path="/" element={<Hero />} />
+            <BetaWatermark />
+            <Suspense fallback={<PageLoader />}>
+                <Routes>
+                    {/* Public Landing Page - Accessible to everyone */}
+                    <Route path="/" element={<Hero />} />
 
-                {/* Authentication Page */}
-                <Route path="/auth/signin" element={<AuthRedirect />} />
+                    {/* Authentication Page */}
+                    <Route path="/auth/signin" element={<AuthRedirect />} />
 
-                {/* Onboarding - Protected */}
-                <Route path="/onboarding" element={
-                    <AuthGuard>
-                        <OnboardingForm />
-                    </AuthGuard>
-                } />
+                    {/* Onboarding - Protected */}
+                    <Route path="/onboarding" element={
+                        <AuthGuard>
+                            <OnboardingForm />
+                        </AuthGuard>
+                    } />
 
-                {/* Public Invite Accept */}
-                <Route path="/join" element={<InviteAccept />} />
+                    {/* Public Invite Accept */}
+                    <Route path="/join" element={<InviteAccept />} />
 
-                {/* WORKSPACE ROUTES - Protected */}
-                <Route path="/workspace/:projectId/*" element={
-                    <AuthGuard>
-                        <ProjectLayout>
-                            <Routes>
-                                <Route path="overview" element={<Overview />} />
-                                <Route path="team" element={<TeamMembers />} />
-                                <Route path="schema-input" element={<SchemaInput />} />
-                                <Route path="er-diagram" element={<ERDiagrams />} />
-                                <Route path="schema-designer" element={<SchemaDesigner />} />
-                                <Route path="explorer" element={<SchemaExplorer />} />
-                                <Route path="compare" element={<VersionCompare />} />
-                                <Route path="explanations" element={<AiExplanations />} />
-                                <Route path="docs" element={<AutoDocs />} />
-                                <Route path="versions" element={<VersionHistory />} />
-                                <Route path="changes" element={<ChangeTracking />} />
-                                <Route path="settings" element={<Settings />} />
-                                <Route path="comments" element={<Comments />} />
-                                <Route path="*" element={<Navigate to="overview" replace />} />
-                            </Routes>
-                        </ProjectLayout>
-                    </AuthGuard>
-                } />
+                    {/* WORKSPACE ROUTES - Protected */}
+                    <Route path="/workspace/:projectId/*" element={
+                        <AuthGuard>
+                            <ProjectLayout>
+                                <Routes>
+                                    <Route path="overview" element={<Overview />} />
+                                    <Route path="team" element={<TeamMembers />} />
+                                    <Route path="schema-input" element={<SchemaInput />} />
+                                    <Route path="er-diagram" element={<ERDiagrams />} />
+                                    <Route path="schema-designer" element={<SchemaDesigner />} />
+                                    <Route path="explorer" element={<SchemaExplorer />} />
+                                    <Route path="compare" element={<VersionCompare />} />
+                                    <Route path="explanations" element={<AiExplanations />} />
+                                    <Route path="docs" element={<AutoDocs />} />
+                                    <Route path="versions" element={<VersionHistory />} />
+                                    <Route path="changes" element={<ChangeTracking />} />
+                                    <Route path="settings" element={<Settings />} />
+                                    <Route path="comments" element={<Comments />} />
+                                    <Route path="*" element={<Navigate to="overview" replace />} />
+                                </Routes>
+                            </ProjectLayout>
+                        </AuthGuard>
+                    } />
 
-                {/* Main Application - Protected */}
-                <Route path="/*" element={
-                    <AuthGuard>
-                        <MainLayout>
-                            <Routes>
-                                <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
-                                <Route path="/projects" element={<Projects />} />
-                                <Route path="/account" element={<UserDashboard />} />
-                                <Route path="/designer" element={<SchemaDesigner />} />
-                                <Route path="/billing" element={<Billing />} />
-                                <Route path="/settings" element={<GlobalSettings />} />
-                                <Route path="/help" element={<PlaceholderPage title="Help / Docs" />} />
-                                <Route path="*" element={<Navigate to="/projects" replace />} />
-                            </Routes>
-                        </MainLayout>
-                    </AuthGuard>
-                } />
-            </Routes>
+                    {/* Main Application - Protected */}
+                    <Route path="/*" element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <Routes>
+                                    <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
+                                    <Route path="/projects" element={<Projects />} />
+                                    <Route path="/account" element={<UserDashboard />} />
+                                    <Route path="/designer" element={<SchemaDesigner />} />
+                                    <Route path="/billing" element={<Billing />} />
+                                    <Route path="/settings" element={<GlobalSettings />} />
+                                    <Route path="/help" element={<Help />} />
+                                    <Route path="*" element={<Navigate to="/projects" replace />} />
+                                </Routes>
+                            </MainLayout>
+                        </AuthGuard>
+                    } />
+                </Routes>
+            </Suspense>
         </Router>
     );
 }

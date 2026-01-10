@@ -44,12 +44,12 @@ const TableNode = ({ id, data, selected }: NodeProps) => {
     // data contains: label, columns, relationsCount, onColumnClick, isConnectable
     return (
         <div
-            className={`bg-white rounded-lg shadow-sm min-w-[240px] overflow-hidden border transition-shadow duration-200 
+            className={`bg-white rounded-lg shadow-sm min-w-[240px] border transition-shadow duration-200 
                 ${selected ? 'ring-2 ring-indigo-500 border-indigo-500 shadow-xl' : 'border-slate-200 hover:shadow-md'}
             `}
         >
             {/* Header */}
-            <div className={`px-4 py-3 border-b flex items-center justify-between
+            <div className={`px-4 py-3 border-b flex items-center justify-between rounded-t-lg
                 ${selected ? 'bg-indigo-50 border-indigo-100' : 'bg-white border-slate-100'}
             `}>
                 <span className="font-bold text-slate-900 text-sm tracking-tight">{data.label}</span>
@@ -109,7 +109,7 @@ const TableNode = ({ id, data, selected }: NodeProps) => {
             </div>
 
             {/* Footer */}
-            <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 flex justify-between items-center">
+            <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 flex justify-between items-center rounded-b-lg">
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
                     {data.relationsCount || 0} Relationships
                 </span>
@@ -171,9 +171,28 @@ function SchemaDesignerContent() {
     const loadSchema = useCallback(async () => {
         if (!projectId) return;
         try {
-            // Load LATEST diagram state (node positions, edges)
-            // .limit(1) ensures only the most recent state is loaded
-            const { data: dData } = await supabase.from('diagram_states').select('diagram_json').eq('project_id', projectId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+            // Optimization: Fetch all initial designer data in parallel 
+            // This reduces initial load time by eliminating sequential round-trips
+            const [dResult, vResult, bResult] = await Promise.all([
+                supabase.from('diagram_states')
+                    .select('diagram_json')
+                    .eq('project_id', projectId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle(),
+                supabase.from('schema_versions')
+                    .select('normalized_schema')
+                    .eq('project_id', projectId)
+                    .order('version', { ascending: false })
+                    .limit(1)
+                    .maybeSingle(),
+                api.getBilling(projectId)
+            ]);
+
+            const { data: dData } = dResult;
+            const { data: vData } = vResult;
+
+            // Handle Diagram State
             const registry: Record<string, { x: number; y: number }> = {};
             if (dData && dData.diagram_json) {
                 const { nodes: savedNodes } = dData.diagram_json as any;
@@ -184,23 +203,23 @@ function SchemaDesignerContent() {
                 if (dData.diagram_json.edges) setEdges(dData.diagram_json.edges);
             }
 
-            // Load LATEST normalized schema (tables, columns, relations)
-            // .limit(1) ensures only the most recent version is loaded
-            // ACTIVE_SCHEMA = max(schema_versions.version)
-            const { data: vData } = await supabase.from('schema_versions').select('normalized_schema').eq('project_id', projectId).order('version', { ascending: false }).limit(1).maybeSingle();
+            // Handle Normalized Schema
             if (vData) setSchema(vData.normalized_schema as UnifiedSchema);
-        } catch (err) { console.error("Load Error", err); }
+
+            // Handle Billing Info
+            if (bResult) setBilling(bResult);
+
+        } catch (err) {
+            console.error("Designer Parallel Load Error", err);
+        } finally {
+            setBillingLoading(false);
+        }
     }, [projectId, setEdges]);
 
     useEffect(() => {
         if (projectId) {
             loadSchema();
-            api.getBilling(projectId)
-                .then(setBilling)
-                .catch(err => console.error("Billing fetch error:", err))
-                .finally(() => setBillingLoading(false));
         } else {
-            // No project - still set loading to false to show sandbox
             setBillingLoading(false);
         }
     }, [loadSchema, projectId]);
@@ -462,7 +481,7 @@ function SchemaDesignerContent() {
             <div className="h-[calc(100vh-8rem)] flex items-center justify-center p-12 overflow-hidden">
                 <BillingGate
                     featureName="Schema Designer & SQL Generator"
-                    description="The visual designer allows you to build schemas graphically and instantly generate SQL, Prisma, or Drizzle code. Upgrade to Pro to unlock."
+                    description="The visual designer allows you to build schemas graphically and instantly generate SQL, Prisma, or Drizzle code. Unlock Pro to enable."
                 />
             </div>
         );
@@ -488,7 +507,7 @@ function SchemaDesignerContent() {
                 className="w-full h-full relative"
                 style={{ cursor }}
             >
-                <div className="absolute top-4 right-6 z-10 flex gap-2">
+                <div className={`absolute top-4 z-30 flex gap-2 transition-all duration-300 ${selectedNodeId ? 'right-[380px]' : 'right-6'}`}>
                     <button
                         onClick={saveAndGenerate}
                         disabled={isSaving}

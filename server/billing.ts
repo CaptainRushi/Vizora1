@@ -36,7 +36,7 @@ async function getPlans(): Promise<Record<string, BillingPlan>> {
         console.error("Failed to load plans", error);
         // Fallback to strict code defaults if DB fails
         return {
-            free: { id: 'free', price_inr: 0, project_limit: 1, version_limit: 2, allow_exports: false, allow_designer: false, allow_team: false, ai_level: 'db' },
+            free: { id: 'free', price_inr: 0, project_limit: 2, version_limit: 2, allow_exports: false, allow_designer: false, allow_team: false, ai_level: 'db' },
             pro: { id: 'pro', price_inr: 1499, project_limit: 5, version_limit: 30, allow_exports: true, allow_designer: true, allow_team: false, ai_level: 'table' },
             teams: { id: 'teams', price_inr: 4999, project_limit: 20, version_limit: -1, allow_exports: true, allow_designer: true, allow_team: true, ai_level: 'full' },
             business: { id: 'business', price_inr: 9999, project_limit: -1, version_limit: -1, allow_exports: true, allow_designer: true, allow_team: true, ai_level: 'full' }
@@ -56,7 +56,7 @@ export async function getWorkspacePlan(workspaceId: string): Promise<BillingPlan
     const freePlanFallback: BillingPlan = {
         id: 'free',
         price_inr: 0,
-        project_limit: 1,
+        project_limit: 2,
         version_limit: 2,
         allow_exports: false,
         allow_designer: false,
@@ -79,9 +79,15 @@ export async function getWorkspacePlan(workspaceId: string): Promise<BillingPlan
 }
 
 export async function checkProjectLimit(workspaceId: string): Promise<{ allowed: boolean; message?: string }> {
+    // BETA OVERRIDE: Disable billing limits during beta
+    // The user explicitly requested to "not run the billing system in beta version"
+    return { allowed: true };
+
+    /*
     const plan = await getWorkspacePlan(workspaceId);
 
-    // Count existing projects
+
+    // Count existing projects (Live count)
     const { count, error } = await supabase
         .from('projects')
         .select('*', { count: 'exact', head: true })
@@ -102,44 +108,19 @@ export async function checkProjectLimit(workspaceId: string): Promise<{ allowed:
     }
 
     return { allowed: true };
+    */
 }
 
 export async function checkVersionLimit(workspaceId: string, projectId: string): Promise<{ allowed: boolean; message?: string }> {
-    const plan = await getWorkspacePlan(workspaceId);
-
-    // Unlimited check
-    if (plan.version_limit === -1) return { allowed: true };
-
-    const { count } = await supabase
-        .from('schema_versions')
-        .select('*', { count: 'exact', head: true })
-        .eq('project_id', projectId);
-
-    const currentVersions = count || 0;
-
-    if (currentVersions >= plan.version_limit) {
-        return {
-            allowed: false,
-            message: `Version limit reached (${currentVersions}/${plan.version_limit}) for this project. Upgrade to preserve more history.`
-        };
-    }
-
-    return { allowed: true };
+    return { allowed: true }; // Beta Override
 }
 
 export async function checkFeatureAccess(workspaceId: string, feature: 'exports' | 'designer' | 'team'): Promise<boolean> {
-    const plan = await getWorkspacePlan(workspaceId);
-
-    if (feature === 'exports') return plan.allow_exports;
-    if (feature === 'designer') return plan.allow_designer;
-    if (feature === 'team') return plan.allow_team;
-
-    return false;
+    return true; // Beta Override: Enable all features
 }
 
 export async function getAiAccessLevel(workspaceId: string) {
-    const plan = await getWorkspacePlan(workspaceId);
-    return plan.ai_level;
+    return 'full'; // Beta Override: Give full AI access
 }
 
 // --- BILLING MUTATIONS ---

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, Shield, Link as LinkIcon, Copy, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
-import axios from 'axios';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
 interface InviteModalProps {
@@ -22,15 +22,27 @@ export function InviteModal({ workspaceId, onClose, onInviteGenerated }: InviteM
         setError(null);
 
         try {
-            const { data } = await axios.post(`http://localhost:3001/workspaces/${workspaceId}/invite`, {
-                role,
-                userId: user?.id
-            });
+            const token = crypto.randomUUID();
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7);
 
-            setInviteUrl(data.url);
+            const { error: iErr } = await supabase
+                .from('workspace_invites')
+                .insert({
+                    workspace_id: workspaceId,
+                    token: token,
+                    role: role,
+                    expires_at: expiresAt.toISOString(),
+                    max_uses: 1
+                });
+
+            if (iErr) throw iErr;
+
+            const baseUrl = window.location.origin;
+            setInviteUrl(`${baseUrl}/join?token=${token}`);
             onInviteGenerated();
         } catch (err: any) {
-            setError(err.response?.data?.error || 'Failed to generate invite link');
+            setError(err.message || 'Failed to generate invite link');
         } finally {
             setLoading(false);
         }
@@ -77,8 +89,8 @@ export function InviteModal({ workspaceId, onClose, onInviteGenerated }: InviteM
                                     <button
                                         onClick={() => setRole('member')}
                                         className={`relative p-4 rounded-xl border-2 text-left transition-all ${role === 'member'
-                                                ? 'border-indigo-600 bg-indigo-50/50'
-                                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            ? 'border-indigo-600 bg-indigo-50/50'
+                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex items-center gap-2 font-bold text-gray-900 mb-1">
@@ -96,8 +108,8 @@ export function InviteModal({ workspaceId, onClose, onInviteGenerated }: InviteM
                                     <button
                                         onClick={() => setRole('admin')}
                                         className={`relative p-4 rounded-xl border-2 text-left transition-all ${role === 'admin'
-                                                ? 'border-indigo-600 bg-indigo-50/50'
-                                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            ? 'border-indigo-600 bg-indigo-50/50'
+                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                             }`}
                                     >
                                         <div className="flex items-center gap-2 font-bold text-gray-900 mb-1">
@@ -141,8 +153,8 @@ export function InviteModal({ workspaceId, onClose, onInviteGenerated }: InviteM
                                     <button
                                         onClick={copyToClipboard}
                                         className={`p-3 rounded-xl font-bold text-sm shrink-0 transition-colors flex items-center gap-2 ${copied
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
                                             }`}
                                     >
                                         {copied ? <CheckCircle2 className="w-5 h-5" /> : <Copy className="w-5 h-5" />}

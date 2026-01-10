@@ -1,11 +1,11 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const api = {
-    createProject: async (name: string, schema_type: string) => {
-        const res = await axios.post(`${API_BASE_URL}/projects`, { name, schema_type });
+    createProject: async (name: string, schema_type: string, workspace_id: string, user_id?: string) => {
+        const res = await axios.post(`${API_BASE_URL}/projects`, { name, schema_type, workspace_id, user_id });
         return res.data;
     },
     ingestSchema: async (projectId: string, raw_schema: string) => {
@@ -56,8 +56,8 @@ export const api = {
         const res = await axios.get(`${API_BASE_URL}/projects/${projectId}/billing`);
         return res.data;
     },
-    upgradePlan: async (projectId: string, planId: string) => {
-        const res = await axios.post(`${API_BASE_URL}/projects/${projectId}/billing/upgrade`, { plan_id: planId });
+    unlockPlan: async (projectId: string, planId: string) => {
+        const res = await axios.post(`${API_BASE_URL}/projects/${projectId}/billing/unlock`, { plan_id: planId });
         return res.data;
     },
     getAppearance: async (_projectId?: string) => {
@@ -67,5 +67,26 @@ export const api = {
     updateAppearance: async (_projectId: string, _appearance: any) => {
         // Placeholder for updating appearance
         return { success: true };
+    },
+    // Beta Endpoints
+    betaConfig: async () => {
+        const res = await axios.get(`${API_BASE_URL}/beta/config`);
+        return res.data;
+    },
+    betaUsage: async (userId: string) => {
+        const res = await axios.get(`${API_BASE_URL}/beta/usage/${userId}`);
+        return res.data;
+    },
+    submitFeedback: async (feedback: {
+        user_id: string;
+        project_id?: string;
+        context: string;
+        rating: number;
+        confusing?: string;
+        helpful?: string;
+        missing?: string;
+    }) => {
+        const res = await axios.post(`${API_BASE_URL}/feedback/submit`, feedback);
+        return res.data;
     }
 };

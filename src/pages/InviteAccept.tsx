@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 import { CheckCircle, XCircle, ArrowRight, Loader2, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -26,22 +26,49 @@ export function InviteAccept() {
 
         const acceptInvite = async () => {
             try {
-                const { data } = await axios.post('http://localhost:3001/workspaces/join', {
-                    token,
-                    userId: user.id
-                });
+                // 1. Validate token
+                const { data: invite, error: iErr } = await supabase
+                    .from('workspace_invites')
+                    .select('*')
+                    .eq('token', token)
+                    .single();
 
-                if (data.success) {
-                    setStatus('success');
+                if (iErr || !invite) throw new Error("Invalid invitation");
+                if (invite.revoked) throw new Error("Invitation revoked");
+                if (new Date(invite.expires_at) < new Date()) throw new Error("Invitation expired");
+                if (invite.used_count >= invite.max_uses) throw new Error("Invitation uses exceeded");
+
+                // 2. Add member
+                const { error: mErr } = await supabase
+                    .from('workspace_members')
+                    .insert({
+                        workspace_id: invite.workspace_id,
+                        user_id: user.id,
+                        role: invite.role
+                    });
+
+                if (mErr) {
+                    if (mErr.code === '23505') {
+                        // Already a member
+                    } else {
+                        throw mErr;
+                    }
                 }
+
+                // 3. Increment used count
+                await supabase
+                    .from('workspace_invites')
+                    .update({ used_count: (invite.used_count || 0) + 1 })
+                    .eq('id', invite.id);
+
+                setStatus('success');
             } catch (err: any) {
                 setStatus('error');
-                setError(err.response?.data?.error || 'Failed to accept invitation.');
+                setError(err.message || 'Failed to accept invitation.');
             }
         };
 
-        // Small delay for UX
-        setTimeout(acceptInvite, 1000);
+        acceptInvite();
     }, [token, user]);
 
     const handleContinue = () => {

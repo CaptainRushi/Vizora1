@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import { supabase } from '../../lib/supabase';
 import { X, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -21,21 +21,19 @@ export function DeleteAccountModal({ workspaceId, onClose }: DeleteAccountModalP
         setError(null);
 
         try {
-            await axios.delete('http://localhost:3001/account', {
-                data: {
-                    userId: user.id,
-                    workspaceId: workspaceId
-                }
+            const { error: rpcError } = await supabase.rpc('delete_account_completely', {
+                target_user_id: user.id,
+                target_workspace_id: workspaceId
             });
 
-            // On success, force logout and redirect
+            if (rpcError) throw rpcError;
+
+            // Log out and redirect
             await signOut();
             window.location.href = '/?deleted=true';
         } catch (err: any) {
             console.error(err);
-            const errorMessage = err.response?.data?.error || 'Failed to delete account.';
-            const errorDetails = err.response?.data?.details || '';
-            setError(errorDetails ? `${errorMessage} (${errorDetails})` : errorMessage);
+            setError(err.message || 'Failed to delete account.');
             setLoading(false);
         }
     };

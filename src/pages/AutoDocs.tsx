@@ -4,6 +4,7 @@ import { useProject } from '../hooks/useProject';
 import { FileText, Download, Loader2, FileDown, Code, Eye, Lock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../lib/api';
+import { FeedbackNudge } from '../components/beta/FeedbackNudge';
 
 interface DocOutput {
     markdown: string;
@@ -63,7 +64,7 @@ export function AutoDocs() {
 
     const handleDownloadPdf = () => {
         if (!billing?.plan.export_enabled) {
-            alert("Upgrade to Pro to download documentation artifacts.");
+            alert("Unlock Pro to download documentation artifacts.");
             return;
         }
         if (doc?.pdf_url) {
@@ -216,6 +217,9 @@ export function AutoDocs() {
                         </div>
                     </div>
                 </div>
+            )}
+            {doc && (
+                <FeedbackNudge context="docs" delay={5000} />
             )}
         </div>
     );
