@@ -608,7 +608,7 @@ app.post('/feedback/submit', async (req, res) => {
     }
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const SYSTEM_PROMPT = `You are a senior backend engineer and database architect.
 Your task is to explain a database schema clearly and accurately.
