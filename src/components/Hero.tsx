@@ -1,7 +1,7 @@
 import { Share2, Layers, FileText, FileCode, LogIn, Layout } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Logo } from './Logo';
+import { Logo } from './VizoraLogo';
 import { useAuth } from '../context/AuthContext';
 
 export function Hero() {

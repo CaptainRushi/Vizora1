@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Folder, PenTool, CreditCard, Settings, HelpCircle, LogOut, Github, Chrome, MessageSquarePlus } from 'lucide-react';
-import { Logo } from './Logo';
+import { Logo } from './VizoraLogo';
 import { useAuth } from '../context/AuthContext';
 import { FeedbackPrompt } from './beta/FeedbackPrompt';
 
