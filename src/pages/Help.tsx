@@ -106,8 +106,8 @@ export function Help() {
                                     key={section.id}
                                     onClick={() => setActiveSection(section.id)}
                                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-1 ${isActive
-                                            ? 'bg-indigo-50 text-indigo-900'
-                                            : 'text-gray-700 hover:bg-gray-50'
+                                        ? 'bg-indigo-50 text-indigo-900'
+                                        : 'text-gray-700 hover:bg-gray-50'
                                         }`}
                                 >
                                     <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : 'text-gray-400'}`} />
@@ -569,40 +569,65 @@ function ContactSupport() {
     return (
         <div className="space-y-6 text-gray-700">
             <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Support Options</h3>
-                <div className="space-y-3">
-                    <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                        <h4 className="font-semibold text-gray-900">Email Support</h4>
-                        <p className="text-sm text-gray-600 mt-1">support@vizora.dev</p>
-                        <p className="text-xs text-gray-500 mt-2">Response time: 24-48 hours</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Get in Touch</h3>
+                <div className="space-y-4">
+                    <div className="border border-indigo-100 rounded-xl p-6 bg-white shadow-sm">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 bg-indigo-50 rounded-lg">
+                                <Mail className="w-6 h-6 text-indigo-600" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-gray-900">Official Support</h4>
+                                <p className="text-sm text-gray-500">For all inquiries, support, and feedback</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <a
+                                href="mailto:vizoraofficial9@gmail.com"
+                                className="block w-full p-3 bg-gray-50 rounded-lg text-center font-medium text-indigo-600 hover:bg-gray-100 transition-colors"
+                            >
+                                vizoraofficial9@gmail.com
+                            </a>
+                            <p className="text-xs text-center text-gray-400">Response time: usually within 24 hours</p>
+                        </div>
                     </div>
-                    <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                        <h4 className="font-semibold text-gray-900">Report a Bug</h4>
-                        <p className="text-sm text-gray-600 mt-1">bugs@vizora.dev</p>
-                        <p className="text-xs text-gray-500 mt-2">Include schema samples when possible</p>
-                    </div>
-                    <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                        <h4 className="font-semibold text-gray-900">Request a Feature</h4>
-                        <p className="text-sm text-gray-600 mt-1">features@vizora.dev</p>
-                        <p className="text-xs text-gray-500 mt-2">Describe your use case</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="border border-gray-100 rounded-xl p-5 bg-white">
+                            <h4 className="font-semibold text-gray-900 mb-2">Report a Bug</h4>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                encountering issues? Email us with a sample of your schema and we'll fix it ASAP.
+                            </p>
+                        </div>
+                        <div className="border border-gray-100 rounded-xl p-5 bg-white">
+                            <h4 className="font-semibold text-gray-900 mb-2">Feature Request</h4>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                Want to see a new feature? We'd love to hear your ideas for improving Vizora.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">When Reporting Issues</h3>
-                <ul className="list-disc pl-5 space-y-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Filing a Request</h3>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
                     <li>Include schema samples (sanitized if needed)</li>
                     <li>Describe expected vs actual behavior</li>
                     <li>Mention browser and OS version</li>
-                    <li>Include screenshots if relevant</li>
+                    <li>Include screenshots for UI issues</li>
                 </ul>
             </div>
 
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <p className="text-sm text-gray-700">
-                    <strong>Note:</strong> For security issues, email security@vizora.dev directly.
-                </p>
+            <div className="bg-indigo-900 rounded-xl p-6 text-white overflow-hidden relative">
+                <div className="relative z-10">
+                    <h4 className="font-bold mb-2">Security & Privacy</h4>
+                    <p className="text-sm text-indigo-100 opacity-90 leading-relaxed">
+                        For security concerns or data privacy inquiries, please contact our official email directly with "SECURITY" in the subject line.
+                    </p>
+                </div>
+                <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
             </div>
         </div>
     );
