@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import * as OpenAIModule from 'openai';
+import OpenAI from 'openai';
 import puppeteer from 'puppeteer';
 import {
     parseSqlDeterministc,
@@ -104,10 +104,13 @@ app.get('/health', async (req, res) => {
     }
 });
 
-const OpenAI = OpenAIModule.default || OpenAIModule;
 const openai = new OpenAI({
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY,
+    defaultHeaders: {
+        "HTTP-Referer": process.env.SITE_URL || "https://vizora.app",
+        "X-Title": "Vizora Schema Intelligence",
+    },
 });
 
 // --- HELPER: Get Workspace ID from Project ---
