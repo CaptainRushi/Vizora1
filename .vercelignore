@@ -1,0 +1,5 @@
+server
+server/**
+*.log
+.env
+.env.local
