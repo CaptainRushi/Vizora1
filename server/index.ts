@@ -1355,7 +1355,7 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
  */
 app.post('/projects/:id/diagram', requireProjectContext, async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
 
         const { data: project, error: pErr } = await supabase.from('projects').select('current_step').eq('id', id).single();
         if (pErr || !project) return res.status(404).json({ error: "Project not found" });
