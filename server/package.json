@@ -4,6 +4,9 @@
   "description": "Vizora Schema Intelligence Backend Server",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "tsx index.ts",
     "dev": "tsx watch index.ts",
