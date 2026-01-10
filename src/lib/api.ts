@@ -1,7 +1,7 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
 export const api = {
     createProject: async (name: string, schema_type: string, workspace_id: string, user_id?: string) => {
