@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useProject } from '../hooks/useProject';
+import { useProjectContext } from '../context/ProjectContext';
 import { useNavigate } from 'react-router-dom';
 import { LoadingSection } from '../components/LoadingSection';
 import { api } from '../lib/api';
@@ -32,7 +32,7 @@ interface Change {
 }
 
 export function Overview() {
-    const { projectId, project, loading: projectLoading } = useProject();
+    const { projectId, project, loading: contextLoading } = useProjectContext();
     const navigate = useNavigate();
 
     // State
@@ -48,20 +48,32 @@ export function Overview() {
         if (!projectId) return;
         setLoading(true);
         try {
-            // 1. Fetch Latest Version & Basic Stats
-            const { data: latestVer } = await supabase
-                .from('schema_versions')
-                .select('version, normalized_schema, created_at')
-                .eq('project_id', projectId)
-                .order('version', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+            // 1. Parallelize base metadata fetches
+            const [latestVerResult, countResult, listResult] = await Promise.all([
+                supabase
+                    .from('schema_versions')
+                    .select('version, normalized_schema, created_at')
+                    .eq('project_id', projectId)
+                    .order('version', { ascending: false })
+                    .limit(1)
+                    .maybeSingle(),
+                supabase
+                    .from('schema_versions')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('project_id', projectId),
+                supabase
+                    .from('schema_versions')
+                    .select('version, created_at')
+                    .eq('project_id', projectId)
+                    .order('version', { ascending: false })
+                    .limit(5)
+            ]);
 
-            // 2. Fetch Total Versions Count
-            const { count: vCount } = await supabase
-                .from('schema_versions')
-                .select('*', { count: 'exact', head: true })
-                .eq('project_id', projectId);
+            const latestVer = latestVerResult.data;
+            const vCount = countResult.count;
+            const vList = listResult.data;
+
+            setVersions(vList || []);
 
             if (latestVer) {
                 const schema = latestVer.normalized_schema as any;
@@ -84,35 +96,25 @@ export function Overview() {
                     lastUpdated: new Date(latestVer.created_at).toLocaleString()
                 });
 
-                // 3. Fetch Recent Changes for this version
-                const { data: changesData } = await supabase
-                    .from('schema_changes')
-                    .select('id, change_type, entity_name')
-                    .eq('project_id', projectId)
-                    .eq('to_version', latestVer.version)
-                    .limit(5);
-                setChanges(changesData || []);
+                // 2. Parallelize version-specific fetches
+                const [changesResult, docsResult] = await Promise.all([
+                    supabase
+                        .from('schema_changes')
+                        .select('id, change_type, entity_name')
+                        .eq('project_id', projectId)
+                        .eq('to_version', latestVer.version)
+                        .limit(5),
+                    supabase
+                        .from('documentation_outputs')
+                        .select('created_at, pdf_url')
+                        .eq('project_id', projectId)
+                        .eq('version', latestVer.version)
+                        .maybeSingle()
+                ]);
 
-                // 5. Fetch Documentation Status
-                const { data: docData } = await supabase
-                    .from('documentation_outputs')
-                    .select('created_at, pdf_url')
-                    .eq('project_id', projectId)
-                    .eq('version', latestVer.version)
-                    .maybeSingle();
-                setDocStatus(docData);
+                setChanges(changesResult.data || []);
+                setDocStatus(docsResult.data);
             }
-
-            // 6. Fetch Versions for Timeline
-            const { data: vList } = await supabase
-                .from('schema_versions')
-                .select('version, created_at')
-                .eq('project_id', projectId)
-                .order('version', { ascending: false })
-                .limit(5);
-            setVersions(vList || []);
-
-
         } catch (err) {
             console.error("Dashboard fetch error:", err);
         } finally {
@@ -121,12 +123,12 @@ export function Overview() {
     };
 
     useEffect(() => {
-        if (!projectLoading && projectId) {
+        if (!contextLoading && projectId) {
             fetchData();
-        } else if (!projectLoading && !projectId) {
+        } else if (!contextLoading && !projectId) {
             setLoading(false);
         }
-    }, [projectId, projectLoading]);
+    }, [projectId, contextLoading]);
 
     const handleRegenerateDocs = async () => {
         if (!projectId || !stats) return;
@@ -143,7 +145,7 @@ export function Overview() {
     };
 
 
-    if (projectLoading || loading) {
+    if (contextLoading || loading) {
         return <LoadingSection title="Analyzing schema intelligence..." />;
     }
 

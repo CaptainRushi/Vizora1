@@ -22,9 +22,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarItem } from './SidebarItem';
-import { useProject } from '../hooks/useProject';
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useProjectContext } from '../context/ProjectContext';
 import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
@@ -32,18 +30,11 @@ interface SidebarProps {
     onClose: () => void;
 }
 
-interface ProjectInfo {
-    id: string;
-    name: string;
-    schema_type: string;
-}
-
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const location = useLocation();
     const navigate = useNavigate();
-    const { projectId } = useProject();
+    const { projectId, project: projectInfo } = useProjectContext();
     const { user } = useAuth();
-    const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
 
     const handleNavigation = (path: string) => {
         navigate(path);
@@ -51,26 +42,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     };
 
     const isActive = (path: string) => location.pathname === path;
-
-    // Fetch project details when projectId changes
-    useEffect(() => {
-        if (projectId) {
-            const fetchProjectInfo = async () => {
-                const { data } = await supabase
-                    .from('projects')
-                    .select('id, name, schema_type')
-                    .eq('id', projectId)
-                    .single();
-
-                if (data) {
-                    setProjectInfo(data);
-                }
-            };
-            fetchProjectInfo();
-        } else {
-            setProjectInfo(null);
-        }
-    }, [projectId]);
 
     // Determine if we're in project context
     const inProjectContext = !!projectId;

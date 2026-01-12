@@ -2,6 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import compression from 'compression';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import puppeteer from 'puppeteer';
@@ -40,6 +41,7 @@ const BETA_VERSION_LIMIT = 4;
 const BETA_LABEL = "Private Beta";
 
 const app = express();
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 

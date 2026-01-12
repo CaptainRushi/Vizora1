@@ -14,7 +14,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Download, Sun, Moon, Maximize, Eye, EyeOff, Share2, RefreshCw, Key } from 'lucide-react';
-import { useProject } from '../hooks/useProject';
+import { useProjectContext } from '../context/ProjectContext';
 import { MacDots } from '../components/MacDots';
 import { supabase } from '../lib/supabase';
 import { FeedbackNudge } from '../components/beta/FeedbackNudge';
@@ -60,23 +60,14 @@ const nodeTypes = {
     table: TableNode,
 };
 
-function ERDiagramsContent() {
-    const { projectId } = useProject();
+const ERDiagramsContent = () => {
+    const { projectId, billing } = useProjectContext();
     const { fitView } = useReactFlow();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [loading, setLoading] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
-    const [billing, setBilling] = useState<any>(null);
-
-    useEffect(() => {
-        if (projectId) {
-            import('../lib/api').then(({ api }) => {
-                api.getBilling(projectId).then(setBilling);
-            });
-        }
-    }, [projectId]);
 
     // CRITICAL: ACTIVE VERSION ONLY RULE
     // This function ALWAYS loads ONLY the latest schema version.
