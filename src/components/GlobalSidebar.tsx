@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Folder, PenTool, CreditCard, Settings, HelpCircle, LogOut, Github, Chrome, MessageSquarePlus } from 'lucide-react';
+import { Folder, PenTool, CreditCard, Settings, HelpCircle, LogOut, Github, Chrome, MessageSquarePlus, ShieldCheck, BookOpen, Brain } from 'lucide-react';
 import { Logo } from './VizoraLogo';
 import { useAuth } from '../context/AuthContext';
 import { FeedbackPrompt } from './beta/FeedbackPrompt';
@@ -20,6 +20,12 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
         { icon: PenTool, label: 'Designer', path: '/designer' },
         { icon: CreditCard, label: 'Billing', path: '/billing' },
         { icon: Settings, label: 'Settings', path: '/settings' },
+    ];
+
+    const intelligenceItems = [
+        { icon: ShieldCheck, label: 'Schema Review', path: `/workspace/${location.pathname.split('/')[2]}/intelligence/review` },
+        { icon: BookOpen, label: 'Onboarding Guide', path: `/workspace/${location.pathname.split('/')[2]}/intelligence/onboarding` },
+        { icon: Brain, label: 'Ask Schema', path: `/workspace/${location.pathname.split('/')[2]}/intelligence/ask` },
     ];
 
     const isActive = (path: string) => {
@@ -86,6 +92,44 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                         </button>
                     );
                 })}
+
+                {/* Intelligence Section */}
+                {location.pathname.startsWith('/workspace/') && location.pathname.split('/')[2] && (
+                    <div className="mt-6 pt-6 border-t border-gray-100 flex flex-col gap-2">
+                        <div className="px-2 mb-2 group-hover:opacity-100 opacity-0 transition-opacity">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">🧠 Intelligence</span>
+                        </div>
+                        {intelligenceItems.map((item) => {
+                            const active = location.pathname === item.path;
+                            return (
+                                <button
+                                    key={item.label}
+                                    onClick={() => navigate(item.path)}
+                                    className={`
+                                        relative flex items-center h-10 px-2 rounded-lg transition-all duration-200 group/item
+                                        ${active ? 'bg-indigo-50/50' : 'hover:bg-gray-50'}
+                                    `}
+                                >
+                                    {active && (
+                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 bg-indigo-600 rounded-r" />
+                                    )}
+
+                                    <item.icon
+                                        className={`h-5 w-5 shrink-0 transition-colors ${active ? 'text-indigo-600' : 'text-gray-500 group-hover/item:text-gray-900'}`}
+                                        strokeWidth={2}
+                                    />
+
+                                    <span className={`
+                                        ml-4 text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                                        ${active ? 'text-indigo-900' : 'text-gray-600'}
+                                    `}>
+                                        {item.label}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </nav>
 
             {/* Bottom Actions */}

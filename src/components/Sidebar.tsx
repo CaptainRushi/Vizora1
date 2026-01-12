@@ -15,7 +15,10 @@ import {
     LayoutDashboard,
     Users,
     Github,
-    Chrome
+    Chrome,
+    ShieldCheck,
+    BookOpen,
+    Brain,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarItem } from './SidebarItem';
@@ -243,6 +246,34 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     subLabel="Generate docs"
                                     active={isActive(getWorkspacePath('docs'))}
                                     onClick={() => handleNavigation(getWorkspacePath('docs'))}
+                                />
+                            </div>
+
+                            {/* Intelligence Section */}
+                            <div className="space-y-1 pt-4 border-t border-gray-100">
+                                <div className="px-3 mb-2">
+                                    <span className="text-[10px] font-medium text-gray-400 uppercase tracking-widest">🧠 Intelligence</span>
+                                </div>
+                                <SidebarItem
+                                    icon={ShieldCheck}
+                                    label="Schema Review"
+                                    subLabel="Audit quality & risks"
+                                    active={isActive(getWorkspacePath('intelligence/review'))}
+                                    onClick={() => handleNavigation(getWorkspacePath('intelligence/review'))}
+                                />
+                                <SidebarItem
+                                    icon={BookOpen}
+                                    label="Onboarding Guide"
+                                    subLabel="Understand the DB"
+                                    active={isActive(getWorkspacePath('intelligence/onboarding'))}
+                                    onClick={() => handleNavigation(getWorkspacePath('intelligence/onboarding'))}
+                                />
+                                <SidebarItem
+                                    icon={Brain}
+                                    label="Ask Schema"
+                                    subLabel="AI assistant"
+                                    active={isActive(getWorkspacePath('intelligence/ask'))}
+                                    onClick={() => handleNavigation(getWorkspacePath('intelligence/ask'))}
                                 />
                             </div>
 

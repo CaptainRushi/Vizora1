@@ -30,6 +30,11 @@ const InviteAccept = lazy(() => import('./pages/InviteAccept').then(m => ({ defa
 const Help = lazy(() => import('./pages/Help').then(m => ({ default: m.Help })));
 const SignInPage = lazy(() => import('./pages/auth/SignInPage').then(m => ({ default: m.SignInPage })));
 
+// Intelligence Features
+const SchemaReview = lazy(() => import('./pages/Intelligence/SchemaReview'));
+const OnboardingGuide = lazy(() => import('./pages/Intelligence/OnboardingGuide'));
+const AskSchema = lazy(() => import('./pages/Intelligence/AskSchema'));
+
 // Loading component
 function PageLoader() {
     return (
@@ -189,6 +194,12 @@ function App() {
                                     <Route path="changes" element={<ChangeTracking />} />
                                     <Route path="settings" element={<Settings />} />
                                     <Route path="comments" element={<Comments />} />
+
+                                    {/* Intelligence Section */}
+                                    <Route path="intelligence/review" element={<SchemaReview />} />
+                                    <Route path="intelligence/onboarding" element={<OnboardingGuide />} />
+                                    <Route path="intelligence/ask" element={<AskSchema />} />
+
                                     <Route path="*" element={<Navigate to="overview" replace />} />
                                 </Routes>
                             </ProjectLayout>

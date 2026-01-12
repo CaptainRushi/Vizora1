@@ -71,7 +71,7 @@ export function Overview() {
                 let relationsCount = 0;
 
                 Object.values(tables).forEach((t: any) => {
-                    columnsCount += (t.columns || []).length;
+                    columnsCount += Object.keys(t.columns || {}).length;
                     relationsCount += (t.relations || []).length;
                 });
 

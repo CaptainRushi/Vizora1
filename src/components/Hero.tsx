@@ -31,7 +31,7 @@ export function Hero() {
       </div>
 
       {/* Top Navigation */}
-      <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-between px-6 sm:px-12 z-20">
+      <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-between px-6 sm:px-12 z-30">
         <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate('/')}>
           <Logo size={40} animated={false} withBackground={true} />
           <span className="vizora-brand text-2xl font-bold text-slate-900 tracking-tight">Vizora</span>
@@ -64,7 +64,7 @@ export function Hero() {
       </div>
 
       {/* Hero Content (Center) */}
-      <div className="flex-1 flex flex-col items-center justify-center text-center z-10 px-4 mt-10 sm:mt-0 relative w-full max-w-4xl mx-auto">
+      <div className="flex-1 flex flex-col items-center justify-center text-center z-20 px-4 mt-10 sm:mt-0 relative w-full max-w-4xl mx-auto">
 
         <h1 className="flex flex-col items-center gap-2 mb-8">
           <span className="text-5xl sm:text-7xl font-bold text-[#0f172a] tracking-tight leading-tight">
@@ -91,7 +91,7 @@ export function Hero() {
       {/* --- FLOATING UI CARDS --- */}
 
       {/* Card 1: Schema Note (Top Left) */}
-      <div className="hidden lg:flex absolute top-32 left-16 xl:left-24 bg-[#fff9c4] p-5 rounded-sm shadow-[0_8px_30px_rgb(0,0,0,0.04)] -rotate-3 w-56 flex-col gap-2 z-20 cursor-default selectable-none animate-float">
+      <div className="hidden lg:flex absolute top-32 left-16 xl:left-24 bg-[#fff9c4] p-5 rounded-sm shadow-[0_8px_30px_rgb(0,0,0,0.04)] -rotate-3 w-56 flex-col gap-2 z-10 cursor-default selectable-none animate-float">
         <div className="w-3 h-3 rounded-full bg-red-400/20 mx-auto mb-1"></div>
         <p className="font-handwriting text-slate-700 text-sm leading-snug">
           "This table stores completed orders and links users to payments."
@@ -99,7 +99,7 @@ export function Hero() {
       </div>
 
       {/* Card 2: ER Diagram Preview (Right) */}
-      <div className="hidden lg:flex absolute top-40 right-10 xl:right-32 bg-white p-5 rounded-2xl shadow-[0_20px_50px_rgb(0,0,0,0.08)] rotate-2 z-20 w-64 flex-col gap-4 cursor-default animate-float-delayed-1">
+      <div className="hidden lg:flex absolute top-40 right-10 xl:right-32 bg-white p-5 rounded-2xl shadow-[0_20px_50px_rgb(0,0,0,0.08)] rotate-2 z-10 w-64 flex-col gap-4 cursor-default animate-float-delayed-1">
         <div className="flex items-center gap-2 mb-1">
           <div className="p-1.5 bg-indigo-50 rounded-md">
             <Share2 className="w-3.5 h-3.5 text-indigo-600" />
@@ -126,7 +126,7 @@ export function Hero() {
       </div>
 
       {/* Card 3: Schema Changes (Bottom Left) */}
-      <div className="hidden lg:flex absolute bottom-32 left-10 xl:left-32 bg-white p-5 rounded-2xl shadow-[0_20px_40px_rgb(0,0,0,0.06)] rotate-1 z-20 w-64 cursor-default animate-float-delayed-2">
+      <div className="hidden lg:flex absolute bottom-32 left-10 xl:left-32 bg-white p-5 rounded-2xl shadow-[0_20px_40px_rgb(0,0,0,0.06)] rotate-1 z-10 w-64 cursor-default animate-float-delayed-2">
         <div className="flex items-center gap-2 mb-3">
           <div className="p-1.5 bg-green-50 rounded-md">
             <Layers className="w-3.5 h-3.5 text-green-600" />
@@ -148,7 +148,7 @@ export function Hero() {
       </div>
 
       {/* Card 4: Export Options (Bottom Right) */}
-      <div className="hidden lg:flex absolute bottom-24 right-16 xl:right-32 bg-white p-5 rounded-2xl shadow-[0_20px_40px_rgb(0,0,0,0.06)] -rotate-2 z-20 cursor-default animate-float-delayed-3">
+      <div className="hidden lg:flex absolute bottom-24 right-16 xl:right-32 bg-white p-5 rounded-2xl shadow-[0_20px_40px_rgb(0,0,0,0.06)] -rotate-2 z-10 cursor-default animate-float-delayed-3">
         <div className="flex items-center gap-2 mb-4">
           <div className="p-1.5 bg-blue-50 rounded-md">
             <FileText className="w-3.5 h-3.5 text-blue-600" />

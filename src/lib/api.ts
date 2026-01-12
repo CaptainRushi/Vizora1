@@ -89,5 +89,19 @@ export const api = {
     }) => {
         const res = await axios.post(`${API_BASE_URL}/feedback/submit`, feedback);
         return res.data;
+    },
+    // Intelligence APIs
+    BACKEND_URL: API_BASE_URL,
+    getSchemaReview: async (projectId: string) => {
+        const res = await axios.post(`${API_BASE_URL}/api/schema/review`, { project_id: projectId });
+        return res.data;
+    },
+    getOnboardingGuide: async (projectId: string, forceRefresh: boolean = false) => {
+        const res = await axios.post(`${API_BASE_URL}/api/schema/onboarding-guide`, { project_id: projectId, force_refresh: forceRefresh });
+        return res.data;
+    },
+    askSchema: async (projectId: string, question: string) => {
+        const res = await axios.post(`${API_BASE_URL}/api/schema/ask`, { project_id: projectId, question });
+        return res.data;
     }
 };

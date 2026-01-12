@@ -48,7 +48,7 @@ interface TeamMember {
     id: string; // membership id
     user_id: string;
     role: 'admin' | 'member';
-    joined_at: string;
+    created_at: string;
     // user_metadata would be here in real app
     email?: string;
     name?: string;
@@ -141,7 +141,7 @@ export function UserDashboard() {
                 ] = await Promise.all([
                     // A. Fetch Members
                     supabase.from('workspace_members')
-                        .select('user_id, role, joined_at, id')
+                        .select('user_id, role, created_at, id')
                         .eq('workspace_id', wsData.id),
                     // B. Fetch Invites (Conditional if admin)
                     role === 'admin'
@@ -367,7 +367,7 @@ export function UserDashboard() {
                                                         {member.user_id === user?.id ? 'You' : `User (${member.user_id.slice(0, 4)}...)`}
                                                     </p>
                                                     <p className="text-xs text-gray-500">
-                                                        Joined {new Date(member.joined_at).toLocaleDateString()}
+                                                        Joined {new Date(member.created_at).toLocaleDateString()}
                                                     </p>
                                                 </div>
                                             </div>
