@@ -1,6 +1,6 @@
 import { useState, ReactNode, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useProject } from '../hooks/useProject';
+import { useProjectContext } from '../context/ProjectContext';
 import { Sidebar } from '../components/Sidebar';
 import { Menu, X, Database } from 'lucide-react';
 
@@ -11,7 +11,7 @@ interface ProjectLayoutProps {
 }
 
 export function ProjectLayout({ children }: ProjectLayoutProps) {
-    const { projectId, project, loading } = useProject();
+    const { projectId, project, loading } = useProjectContext();
     const navigate = useNavigate();
     const location = useLocation();
 

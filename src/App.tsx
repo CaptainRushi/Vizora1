@@ -6,6 +6,7 @@ import { useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
 import { Hero } from './components/Hero';
 import { BetaWatermark } from './components/BetaWatermark';
+import { ProjectProvider } from './context/ProjectContext';
 
 // Lazy load pages for code splitting
 const ERDiagrams = lazy(() => import('./pages/ERDiagrams').then(m => ({ default: m.ERDiagrams })));
@@ -29,6 +30,11 @@ const TeamMembers = lazy(() => import('./pages/TeamMembers').then(m => ({ defaul
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(m => ({ default: m.InviteAccept })));
 const Help = lazy(() => import('./pages/Help').then(m => ({ default: m.Help })));
 const SignInPage = lazy(() => import('./pages/auth/SignInPage').then(m => ({ default: m.SignInPage })));
+
+// Intelligence Features
+const SchemaReview = lazy(() => import('./pages/Intelligence/SchemaReview'));
+const OnboardingGuide = lazy(() => import('./pages/Intelligence/OnboardingGuide'));
+const AskSchema = lazy(() => import('./pages/Intelligence/AskSchema'));
 
 // Loading component
 function PageLoader() {
@@ -174,24 +180,32 @@ function App() {
                     {/* WORKSPACE ROUTES - Protected */}
                     <Route path="/workspace/:projectId/*" element={
                         <AuthGuard>
-                            <ProjectLayout>
-                                <Routes>
-                                    <Route path="overview" element={<Overview />} />
-                                    <Route path="team" element={<TeamMembers />} />
-                                    <Route path="schema-input" element={<SchemaInput />} />
-                                    <Route path="er-diagram" element={<ERDiagrams />} />
-                                    <Route path="schema-designer" element={<SchemaDesigner />} />
-                                    <Route path="explorer" element={<SchemaExplorer />} />
-                                    <Route path="compare" element={<VersionCompare />} />
-                                    <Route path="explanations" element={<AiExplanations />} />
-                                    <Route path="docs" element={<AutoDocs />} />
-                                    <Route path="versions" element={<VersionHistory />} />
-                                    <Route path="changes" element={<ChangeTracking />} />
-                                    <Route path="settings" element={<Settings />} />
-                                    <Route path="comments" element={<Comments />} />
-                                    <Route path="*" element={<Navigate to="overview" replace />} />
-                                </Routes>
-                            </ProjectLayout>
+                            <ProjectProvider>
+                                <ProjectLayout>
+                                    <Routes>
+                                        <Route path="overview" element={<Overview />} />
+                                        <Route path="team" element={<TeamMembers />} />
+                                        <Route path="schema-input" element={<SchemaInput />} />
+                                        <Route path="er-diagram" element={<ERDiagrams />} />
+                                        <Route path="schema-designer" element={<SchemaDesigner />} />
+                                        <Route path="explorer" element={<SchemaExplorer />} />
+                                        <Route path="compare" element={<VersionCompare />} />
+                                        <Route path="explanations" element={<AiExplanations />} />
+                                        <Route path="docs" element={<AutoDocs />} />
+                                        <Route path="versions" element={<VersionHistory />} />
+                                        <Route path="changes" element={<ChangeTracking />} />
+                                        <Route path="settings" element={<Settings />} />
+                                        <Route path="comments" element={<Comments />} />
+
+                                        {/* Intelligence Section */}
+                                        <Route path="intelligence/review" element={<SchemaReview />} />
+                                        <Route path="intelligence/onboarding" element={<OnboardingGuide />} />
+                                        <Route path="intelligence/ask" element={<AskSchema />} />
+
+                                        <Route path="*" element={<Navigate to="overview" replace />} />
+                                    </Routes>
+                                </ProjectLayout>
+                            </ProjectProvider>
                         </AuthGuard>
                     } />
 

@@ -106,10 +106,14 @@ export function OnboardingForm() {
     const handleSubmit = async () => {
         if (!validateStep(currentStep)) return;
 
-        setIsSubmitting(true);
-        setError(null);
+        if (!user || !user.id) {
+            setError('User session not found. Please sign in again.');
+            setIsSubmitting(false);
+            return;
+        }
 
         try {
+            console.log('[Onboarding] Creating workspace for user:', user.id);
             // 1. Create workspace
             const { data: workspace, error: workspaceError } = await supabase
                 .from('workspaces')

@@ -2,6 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import compression from 'compression';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import puppeteer from 'puppeteer';
@@ -17,6 +18,11 @@ import {
 } from './parser.js';
 import { marked } from 'marked';
 import crypto from 'crypto';
+
+// New Intelligence Routes
+import schemaReviewRoutes from './src/routes/schemaReview.js';
+import onboardingGuideRoutes from './src/routes/onboardingGuide.js';
+import askSchemaRoutes from './src/routes/askSchema.js';
 import {
     getWorkspacePlan,
     checkProjectLimit,
@@ -35,6 +41,7 @@ const BETA_VERSION_LIMIT = 4;
 const BETA_LABEL = "Private Beta";
 
 const app = express();
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 
@@ -707,6 +714,11 @@ app.get('/favicon.ico', (req, res) => {
     res.status(204).end();
 });
 
+// Intelligence Routes
+app.use('/api/schema', schemaReviewRoutes);
+app.use('/api/schema', onboardingGuideRoutes);
+app.use('/api/schema', askSchemaRoutes);
+
 
 // --- ROUTES ---
 /**
@@ -1095,6 +1107,56 @@ app.get('/billing/history/:workspaceId', async (req, res) => {
         res.json({ payments: history });
     } catch (err: any) {
         console.error('[Billing] Failed to get payment history:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * PROJECT-SCOPED BILLING
+ * Used by components like SchemaDesigner, ERDiagrams, and AutoDocs to check access.
+ */
+app.get('/projects/:id/billing', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const workspaceId = await getWorkspaceIdFromProject(id);
+
+        if (!workspaceId) {
+            // Fallback for projects without workspace context (should be rare)
+            return res.json({
+                plan: { id: 'free', ai_level: 'full', allow_exports: true, allow_designer: true },
+                usage: { projects_count: 0 }
+            });
+        }
+
+        const plan = await getWorkspacePlan(workspaceId);
+        const { data: usage } = await supabase
+            .from('workspace_usage')
+            .select('*')
+            .eq('workspace_id', workspaceId)
+            .maybeSingle();
+
+        res.json({
+            plan,
+            usage: usage || { projects_count: 0, ai_tokens_used: 0 }
+        });
+    } catch (err: any) {
+        console.error('[Billing Route] Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/projects/:id/billing/unlock', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { plan_id } = req.body;
+        const workspaceId = await getWorkspaceIdFromProject(id);
+
+        if (!workspaceId) throw new Error("Project has no workspace context for billing");
+
+        const result = await upgradeWorkspace(workspaceId, plan_id);
+        res.json(result);
+    } catch (err: any) {
+        console.error('[Billing Unlock] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

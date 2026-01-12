@@ -195,3 +195,35 @@
   will-change: transform;
   backface-visibility: hidden;
 }
+
+/* --- PRINT STYLES --- */
+@media print {
+
+  aside,
+  nav,
+  header,
+  .no-print,
+  button,
+  .feedback-button,
+  .beta-watermark {
+    display: none !important;
+  }
+
+  main,
+  .lg\:pl-\[72px\],
+  .lg\:pl-\[270px\] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .bg-gray-50,
+  body,
+  .bg-white {
+    background: white !important;
+  }
+
+  .prose {
+    color: black !important;
+    max-width: none !important;
+  }
+}
