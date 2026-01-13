@@ -103,5 +103,60 @@ export const api = {
     askSchema: async (projectId: string, question: string) => {
         const res = await axios.post(`${API_BASE_URL}/api/schema/ask`, { project_id: projectId, question });
         return res.data;
+    },
+
+    // User Dashboard APIs
+    dashboard: {
+        getIdentity: async (userId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/dashboard/identity`, { params: { userId } });
+            return res.data;
+        },
+        updateIdentity: async (data: { userId: string; username?: string; workspaceName?: string; workspaceId?: string }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/dashboard/identity`, data);
+            return res.data;
+        },
+        getUsage: async (workspaceId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/dashboard/usage`, { params: { workspaceId } });
+            return res.data;
+        },
+        getBilling: async (workspaceId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/dashboard/billing`, { params: { workspaceId } });
+            return res.data;
+        },
+        getTeam: async (workspaceId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/dashboard/team`, { params: { workspaceId } });
+            return res.data;
+        },
+        inviteTeamMember: async (workspaceId: string, role: string, userId: string) => {
+            const res = await axios.post(`${API_BASE_URL}/api/dashboard/team/invite`, { workspaceId, role, userId });
+            return res.data;
+        },
+        changeRole: async (memberId: string, newRole: string, workspaceId: string, userId: string) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/dashboard/team/role`, { memberId, newRole, workspaceId, userId });
+            return res.data;
+        },
+        removeMember: async (memberId: string, workspaceId: string, userId: string) => {
+            const res = await axios.delete(`${API_BASE_URL}/api/dashboard/team/remove`, { data: { memberId, workspaceId, userId } });
+            return res.data;
+        },
+        getActivity: async (workspaceId: string, limit?: number) => {
+            const res = await axios.get(`${API_BASE_URL}/api/dashboard/activity`, { params: { workspaceId, limit } });
+            return res.data;
+        },
+        // Profile APIs for Edit Profile feature
+        getProfile: async (userId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/dashboard/profile`, { params: { userId } });
+            return res.data;
+        },
+        updateProfile: async (data: {
+            userId: string;
+            username?: string;
+            display_name?: string;
+            workspace_name?: string;
+            workspaceId?: string;
+        }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/dashboard/profile`, data);
+            return res.data;
+        }
     }
 };

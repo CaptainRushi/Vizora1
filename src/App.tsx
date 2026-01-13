@@ -4,7 +4,6 @@ import { MainLayout } from './layouts/MainLayout';
 import { ProjectLayout } from './layouts/ProjectLayout';
 import { useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
-import { Hero } from './components/Hero';
 import { BetaWatermark } from './components/BetaWatermark';
 import { ProjectProvider } from './context/ProjectContext';
 
@@ -30,6 +29,7 @@ const TeamMembers = lazy(() => import('./pages/TeamMembers').then(m => ({ defaul
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(m => ({ default: m.InviteAccept })));
 const Help = lazy(() => import('./pages/Help').then(m => ({ default: m.Help })));
 const SignInPage = lazy(() => import('./pages/auth/SignInPage').then(m => ({ default: m.SignInPage })));
+const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
 
 // Intelligence Features
 const SchemaReview = lazy(() => import('./pages/Intelligence/SchemaReview'));
@@ -162,7 +162,7 @@ function App() {
             <Suspense fallback={<PageLoader />}>
                 <Routes>
                     {/* Public Landing Page - Accessible to everyone */}
-                    <Route path="/" element={<Hero />} />
+                    <Route path="/" element={<LandingPage />} />
 
                     {/* Authentication Page */}
                     <Route path="/auth/signin" element={<AuthRedirect />} />
@@ -215,6 +215,7 @@ function App() {
                             <MainLayout>
                                 <Routes>
                                     <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
+                                    <Route path="/dashboard/account" element={<UserDashboard />} />
                                     <Route path="/projects" element={<Projects />} />
                                     <Route path="/account" element={<UserDashboard />} />
                                     <Route path="/designer" element={<SchemaDesigner />} />

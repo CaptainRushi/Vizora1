@@ -9,12 +9,70 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    @apply text-slate-900;
   }
 
   .vizora-brand {
     font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
     font-weight: 700;
     letter-spacing: -0.02em;
+  }
+
+  /* Standard Headings - Precise Scale */
+  h1 {
+    @apply text-4xl lg:text-[72px] font-extrabold tracking-tight leading-[1.1] text-slate-900;
+  }
+
+  h2 {
+    @apply text-3xl lg:text-[48px] font-extrabold tracking-tight leading-[1.15] text-slate-800;
+  }
+
+  h3 {
+    @apply text-2xl lg:text-[32px] font-bold tracking-tight leading-[1.2] text-slate-800;
+  }
+}
+
+@layer components {
+
+  /* THE GLOBAL LAYOUT CONTRACT */
+  .app-container {
+    @apply max-w-[1280px] mx-auto px-6 lg:px-12 w-full relative;
+  }
+
+  .app-section {
+    @apply py-[96px];
+    /* Section horizontal/vertical rhythm */
+  }
+
+  .app-section-inner {
+    @apply py-[48px];
+    /* Internal section spacing */
+  }
+
+  /* Sub-element spacing helper */
+  .element-gap {
+    @apply mb-[24px];
+  }
+
+  /* PRICING BASELINE GRID */
+  .pricing-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch;
+  }
+
+  .pricing-card {
+    @apply flex flex-col p-8 bg-white border border-slate-200 rounded-3xl h-full transition-all;
+  }
+
+  .pricing-card-header {
+    @apply mb-6;
+  }
+
+  .pricing-card-features {
+    @apply flex-grow space-y-4 mb-8;
+  }
+
+  .pricing-card-footer {
+    @apply mt-auto pt-6;
   }
 }
 
@@ -225,5 +283,323 @@
   .prose {
     color: black !important;
     max-width: none !important;
+  }
+}
+
+/* ============================
+   VIZORA MOTION SYSTEM
+   
+   Motion Rules:
+   - Duration: 120ms – 220ms
+   - Easing: ease-out or cubic-bezier(0.2, 0.8, 0.2, 1)
+   - No infinite animations (except loading states)
+   - Motion stops when user stops
+============================ */
+
+/* --- SHIMMER (Loading skeleton) --- */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* --- SHAKE (Error feedback) --- */
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-2px);
+  }
+
+  40%,
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.3s ease-out;
+}
+
+/* --- FADE IN (Content appearance) --- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 180ms ease-out;
+}
+
+/* --- FADE IN UP (Page transitions) --- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* --- SCALE IN (Modals, Cards) --- */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scaleIn {
+  animation: scaleIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* --- SCALE OUT (Exit animation) --- */
+@keyframes scaleOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.animate-scaleOut {
+  animation: scaleOut 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* --- SLIDE IN RIGHT (Drawers) --- */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slideInRight {
+  animation: slideInRight 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* --- SLIDE OUT RIGHT (Drawer exit) --- */
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-slideOutRight {
+  animation: slideOutRight 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* --- DRAW CHECK (Success checkmark) --- */
+@keyframes drawCheck {
+  0% {
+    stroke-dashoffset: 24;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-drawCheck {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: drawCheck 300ms ease-out forwards;
+}
+
+/* --- SUCCESS PULSE (Confirmation) --- */
+@keyframes successPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.animate-successPulse {
+  animation: successPulse 300ms ease-out;
+}
+
+/* --- EXPAND (Accordions, panels) --- */
+@keyframes expand {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+
+  to {
+    max-height: 2000px;
+    opacity: 1;
+  }
+}
+
+.animate-expand {
+  animation: expand 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow: hidden;
+}
+
+/* --- COLLAPSE (Accordion close) --- */
+@keyframes collapse {
+  from {
+    max-height: 2000px;
+    opacity: 1;
+  }
+
+  to {
+    max-height: 0;
+    opacity: 0;
+  }
+}
+
+.animate-collapse {
+  animation: collapse 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow: hidden;
+}
+
+/* ============================
+   MOTION UTILITY CLASSES
+============================ */
+
+/* Fast transitions (120ms) */
+.motion-fast {
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+/* Medium transitions (180ms) */
+.motion-medium {
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Slow transitions (220ms) */
+.motion-slow {
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ============================
+   BUTTON MOTION
+============================ */
+.btn-motion {
+  transition: all 120ms ease-out;
+}
+
+.btn-motion:hover {
+  transform: translateY(-1px);
+}
+
+.btn-motion:active {
+  transform: translateY(0) scale(0.96);
+}
+
+/* ============================
+   CARD MOTION
+============================ */
+.card-motion {
+  transition: all 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.card-motion:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* ============================
+   SIDEBAR ACTIVE INDICATOR
+============================ */
+@keyframes indicatorSlideIn {
+  from {
+    transform: scaleY(0);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.sidebar-indicator {
+  animation: indicatorSlideIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center;
+}
+
+/* ============================
+   AI THINKING INDICATOR
+============================ */
+@keyframes thinkingPulse {
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.ai-thinking {
+  animation: thinkingPulse 1.2s ease-in-out infinite;
+}
+
+/* ============================
+   REDUCED MOTION SUPPORT
+============================ */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
