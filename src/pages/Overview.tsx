@@ -196,64 +196,66 @@ export function Overview() {
     }
 
     return (
-        <div className="max-w-[1280px] mx-auto space-y-10 pb-20 animate-in fade-in duration-700">
-            {/* Header */}
-            <DashboardHeader
-                projectName={project?.name || 'Project Name'}
-                schemaType={project?.schema_type || 'SQL'}
-                version={`v${stats.version}`}
-                lastUpdated={stats.lastUpdated}
-                onPasteNew={() => setIsPasteModalOpen(true)}
-                onViewDiagram={() => navigate(`/workspace/${projectId}/er-diagram`)}
-                onExportDocs={() => navigate(`/workspace/${projectId}/docs`)}
-            />
+        <div className="app-container py-12">
+            <div className="space-y-10 pb-20 animate-in fade-in duration-700">
+                {/* Header */}
+                <DashboardHeader
+                    projectName={project?.name || 'Project Name'}
+                    schemaType={project?.schema_type || 'SQL'}
+                    version={`v${stats.version}`}
+                    lastUpdated={stats.lastUpdated}
+                    onPasteNew={() => setIsPasteModalOpen(true)}
+                    onViewDiagram={() => navigate(`/workspace/${projectId}/er-diagram`)}
+                    onExportDocs={() => navigate(`/workspace/${projectId}/docs`)}
+                />
 
-            {/* Quick Paste Modal */}
-            <QuickPasteModal
-                projectId={projectId}
-                isOpen={isPasteModalOpen}
-                onClose={() => setIsPasteModalOpen(false)}
-                onSuccess={() => fetchData()}
-            />
+                {/* Quick Paste Modal */}
+                <QuickPasteModal
+                    projectId={projectId}
+                    isOpen={isPasteModalOpen}
+                    onClose={() => setIsPasteModalOpen(false)}
+                    onSuccess={() => fetchData()}
+                />
 
-            {/* Status Grid */}
-            <SchemaStatusCards
-                tables={stats.tablesCount}
-                columns={stats.columnsCount}
-                relationships={stats.relationsCount}
-                versions={stats.versionsTotal}
-            />
+                {/* Status Grid */}
+                <SchemaStatusCards
+                    tables={stats.tablesCount}
+                    columns={stats.columnsCount}
+                    relationships={stats.relationsCount}
+                    versions={stats.versionsTotal}
+                />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                {/* Left/Main Column */}
-                <div className="lg:col-span-2 space-y-12">
-                    <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 outline-none">Knowledge Access</h4>
-                        <QuickActions projectId={projectId} />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    {/* Left/Main Column */}
+                    <div className="lg:col-span-2 space-y-12">
+                        <div className="space-y-4">
+                            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 outline-none">Knowledge Access</h4>
+                            <QuickActions projectId={projectId} />
+                        </div>
+
+                        <div className="pt-4">
+                            <RecentChanges
+                                changes={changes}
+                                onViewHistory={() => navigate(`/workspace/${projectId}/versions`)}
+                                onCompare={() => navigate(`/workspace/${projectId}/compare`)}
+                            />
+                        </div>
                     </div>
 
-                    <div className="pt-4">
-                        <RecentChanges
-                            changes={changes}
-                            onViewHistory={() => navigate(`/workspace/${projectId}/versions`)}
-                            onCompare={() => navigate(`/workspace/${projectId}/compare`)}
+                    {/* Right/Side Column */}
+                    <div className="space-y-6">
+                        <DocumentationStatus
+                            version={`v${stats.version}`}
+                            lastGenerated={docStatus ? new Date(docStatus.created_at).toLocaleString() : null}
+                            isGenerating={isGeneratingDocs}
+                            onRegenerate={handleRegenerateDocs}
+                        />
+
+                        <VersionTimeline
+                            versions={versions}
+                            onVersionClick={(v) => v === -1 ? navigate(`/workspace/${projectId}/versions`) : navigate(`/workspace/${projectId}/explorer?v=${v}`)}
                         />
                     </div>
-                </div>
-
-                {/* Right/Side Column */}
-                <div className="space-y-6">
-                    <DocumentationStatus
-                        version={`v${stats.version}`}
-                        lastGenerated={docStatus ? new Date(docStatus.created_at).toLocaleString() : null}
-                        isGenerating={isGeneratingDocs}
-                        onRegenerate={handleRegenerateDocs}
-                    />
-
-                    <VersionTimeline
-                        versions={versions}
-                        onVersionClick={(v) => v === -1 ? navigate(`/workspace/${projectId}/versions`) : navigate(`/workspace/${projectId}/explorer?v=${v}`)}
-                    />
                 </div>
             </div>
         </div>

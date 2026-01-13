@@ -23,6 +23,7 @@ import crypto from 'crypto';
 import schemaReviewRoutes from './src/routes/schemaReview.js';
 import onboardingGuideRoutes from './src/routes/onboardingGuide.js';
 import askSchemaRoutes from './src/routes/askSchema.js';
+import dashboardRoutes from './src/routes/dashboard.js';
 import {
     getWorkspacePlan,
     checkProjectLimit,
@@ -718,6 +719,9 @@ app.get('/favicon.ico', (req, res) => {
 app.use('/api/schema', schemaReviewRoutes);
 app.use('/api/schema', onboardingGuideRoutes);
 app.use('/api/schema', askSchemaRoutes);
+
+// User Dashboard Routes
+app.use('/api/dashboard', dashboardRoutes);
 
 
 // --- ROUTES ---

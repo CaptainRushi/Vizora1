@@ -192,6 +192,7 @@ BEGIN
   FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' 
            AND table_name IN ('schema_versions', 'schema_reviews', 'onboarding_guides', 'ask_schema_logs', 'schema_comments')
   LOOP
+    EXECUTE 'DROP POLICY IF EXISTS "Project Child Access" ON ' || t;
     EXECUTE 'CREATE POLICY "Project Child Access" ON ' || t || ' FOR ALL USING (
       project_id IN (
         SELECT id FROM projects WHERE workspace_id IN (

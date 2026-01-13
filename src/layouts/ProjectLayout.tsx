@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useProjectContext } from '../context/ProjectContext';
 import { Sidebar } from '../components/Sidebar';
 import { Menu, X, Database } from 'lucide-react';
+import { Logo } from '../components/VizoraLogo';
 
 import { FeedbackButton } from '../components/beta/FeedbackButton';
 
@@ -39,16 +40,14 @@ export function ProjectLayout({ children }: ProjectLayoutProps) {
     }
 
     return (
-        <div className="flex flex-col min-h-screen bg-gray-50">
-            {/* macOS Window Safe Bar */}
-            <div className="h-8 w-full shrink-0 z-50 select-none pointer-events-none hidden lg:block" />
+        <div className="flex flex-col lg:grid lg:grid-cols-[270px_1fr] min-h-screen bg-gray-50">
+            {/* macOS Window Safe Bar - Global */}
+            <div className="h-8 w-full shrink-0 z-50 select-none pointer-events-none hidden lg:block col-span-full" />
 
             {/* Mobile Header */}
             <header className="lg:hidden h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-40 sticky top-0">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs ring-2 ring-indigo-100 shadow-sm shrink-0">
-                        {project?.name?.[0]?.toUpperCase() || 'P'}
-                    </div>
+                    <Logo size={32} animated={false} withBackground={true} />
                     <div className="flex flex-col min-w-0">
                         <span className="text-xs font-black text-gray-900 truncate leading-tight">{project?.name}</span>
                         <div className="flex items-center gap-1 opacity-60">
@@ -65,13 +64,18 @@ export function ProjectLayout({ children }: ProjectLayoutProps) {
                 </button>
             </header>
 
-            <div className="flex flex-1 relative">
-                <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            {/* Sidebar - Col 1 */}
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-                <div className="flex-1 lg:pl-[270px] w-full relative">
+            {/* Layout Spacer for Fixed Sidebar - Col 1 */}
+            <div className="hidden lg:block w-[270px] shrink-0" />
+
+            {/* Main Content Area - Col 2 */}
+            <main className="flex-1 w-full relative overflow-y-auto">
+                <div className="min-h-[calc(100vh-2rem)] w-full">
                     {children}
                 </div>
-            </div>
+            </main>
 
             <FeedbackButton />
         </div>
