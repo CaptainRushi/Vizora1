@@ -166,39 +166,39 @@ export function EditProfileDrawer({
     if (!isOpen) return null;
 
     return (
-        <>
-            {/* Backdrop - Fade in */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div
-                className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 animate-fadeIn"
-                onClick={onClose}
-            />
-
-            {/* Drawer - Slide in from right */}
-            <div
-                className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 animate-slideInRight"
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-100 animate-in zoom-in-95 duration-200"
                 onKeyDown={handleKeyDown}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900">Edit Profile</h2>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Update your personal and workspace identity.
-                        </p>
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur">
+                                <User className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold">Edit Profile</h2>
+                                <p className="text-indigo-200 text-sm mt-0.5">
+                                    Update your personal and workspace info
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="text-white/70 hover:text-white p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-6 space-y-6 overflow-y-auto" style={{ height: 'calc(100% - 180px)' }}>
+                <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
                     {/* Success Message */}
                     {saveSuccess && (
-                        <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 animate-scaleIn">
+                        <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700">
                             <Check className="w-5 h-5" />
                             <span className="font-medium">Profile updated successfully.</span>
                         </div>
@@ -212,7 +212,7 @@ export function EditProfileDrawer({
                         </div>
                     )}
 
-                    {/* Editable Section Header */}
+                    {/* Personal Info Section */}
                     <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
                         <User className="w-4 h-4" />
                         Personal Information
@@ -239,7 +239,7 @@ export function EditProfileDrawer({
                                 }`}
                         />
                         {errors.username && (
-                            <p className="text-sm text-red-600 flex items-center gap-1 animate-shake">
+                            <p className="text-sm text-red-600 flex items-center gap-1">
                                 <AlertCircle className="w-4 h-4" />
                                 {errors.username}
                             </p>
@@ -262,13 +262,10 @@ export function EditProfileDrawer({
                             placeholder="Your name or role"
                             className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                         />
-                        <p className="text-xs text-gray-400">
-                            Shown alongside your username in team contexts.
-                        </p>
                     </div>
 
-                    {/* Read-Only Section Header */}
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider pt-4 border-t border-gray-100">
+                    {/* Read-Only Section */}
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider pt-2 border-t border-gray-100">
                         <Lock className="w-4 h-4" />
                         Read-Only
                     </div>
@@ -281,15 +278,12 @@ export function EditProfileDrawer({
                         <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-500 lowercase">
                             {userEmail}
                         </div>
-                        <p className="text-xs text-gray-400">
-                            Email cannot be changed.
-                        </p>
                     </div>
 
                     {/* Workspace Section */}
                     {workspaceId && (
                         <>
-                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider pt-4 border-t border-gray-100">
+                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider pt-2 border-t border-gray-100">
                                 <Building2 className="w-4 h-4" />
                                 Workspace
                                 {!canEditWorkspace && (
@@ -327,9 +321,6 @@ export function EditProfileDrawer({
                                                 {errors.workspaceName}
                                             </p>
                                         )}
-                                        <p className="text-xs text-gray-400">
-                                            2-50 characters.
-                                        </p>
                                     </>
                                 ) : (
                                     <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-500">
@@ -338,23 +329,19 @@ export function EditProfileDrawer({
                                 )}
                             </div>
 
-                            {/* Workspace Type (Read-Only) */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-gray-500">
-                                    Workspace Type
-                                </label>
-                                <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-500 capitalize">
-                                    {workspaceType === 'team' ? 'Team Workspace' : 'Solo Workspace'}
+                            {/* Info row */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold text-gray-400">Type</label>
+                                    <div className="px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm text-gray-600 capitalize">
+                                        {workspaceType === 'team' ? 'Team' : 'Solo'}
+                                    </div>
                                 </div>
-                            </div>
-
-                            {/* Role (Read-Only) */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-gray-500">
-                                    Your Role
-                                </label>
-                                <div className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-500 capitalize">
-                                    {userRole}
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold text-gray-400">Role</label>
+                                    <div className="px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm text-gray-600 capitalize">
+                                        {userRole}
+                                    </div>
                                 </div>
                             </div>
                         </>
@@ -362,19 +349,19 @@ export function EditProfileDrawer({
                 </div>
 
                 {/* Footer */}
-                <div className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t border-gray-100">
+                <div className="p-6 bg-gray-50 border-t border-gray-100">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={onClose}
                             disabled={isSaving}
-                            className="flex-1 px-4 py-3 text-gray-700 font-medium bg-gray-100 rounded-xl btn-motion hover:bg-gray-200 disabled:opacity-50"
+                            className="flex-1 px-4 py-3 text-gray-700 font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-100 disabled:opacity-50 transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={handleSave}
                             disabled={isSaving || saveSuccess}
-                            className="flex-1 px-4 py-3 text-white font-bold bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl btn-motion hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="flex-1 px-4 py-3 text-white font-bold bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
                         >
                             {isSaving ? (
                                 <>
@@ -387,15 +374,12 @@ export function EditProfileDrawer({
                                     Saved!
                                 </>
                             ) : (
-                                'Save changes'
+                                'Save Changes'
                             )}
                         </button>
                     </div>
-                    <p className="text-center text-xs text-gray-400 mt-3">
-                        Press <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">⌘ Enter</kbd> to save
-                    </p>
                 </div>
             </div>
-        </>
+        </div>
     );
 }

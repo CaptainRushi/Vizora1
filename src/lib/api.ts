@@ -4,6 +4,9 @@ import axios from 'axios';
 const rawBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 const API_BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
+// Export for direct usage
+export const BACKEND_URL = API_BASE_URL;
+
 export const api = {
     createProject: async (name: string, schema_type: string, workspace_id: string, user_id?: string) => {
         const res = await axios.post(`${API_BASE_URL}/projects`, { name, schema_type, workspace_id, user_id });
