@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS billing_plans (
   price_inr INT NOT NULL,
   project_limit INT NOT NULL,
   version_limit INT NOT NULL, -- -1 for unlimited
+  ai_limit INT DEFAULT -1, -- -1 for unlimited
   validity_days INT NOT NULL DEFAULT 30,
   allow_exports BOOLEAN NOT NULL DEFAULT FALSE,
   allow_designer BOOLEAN NOT NULL DEFAULT FALSE,
@@ -153,6 +154,43 @@ CREATE TABLE IF NOT EXISTS documentation_outputs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS schema_reviews (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    version_number INT NOT NULL,
+    findings JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(project_id, version_number)
+);
+
+CREATE TABLE IF NOT EXISTS onboarding_guides (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    version_number INT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(project_id, version_number)
+);
+
+CREATE TABLE IF NOT EXISTS ask_schema_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    schema_version INT,
+    question TEXT NOT NULL,
+    referenced_tables TEXT[],
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS schema_comments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    entity_name TEXT NOT NULL,
+    comment TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(project_id, entity_name)
+);
+
 CREATE TABLE IF NOT EXISTS project_settings (
   project_id UUID PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
   explanation_mode TEXT DEFAULT 'developer',
@@ -205,7 +243,7 @@ CREATE TABLE IF NOT EXISTS workspace_invites (
   role TEXT NOT NULL CHECK (role IN ('admin', 'editor', 'viewer', 'member')),
   expires_at TIMESTAMPTZ NOT NULL,
   used_count INT DEFAULT 0,
-  max_uses INT DEFAULT 1,
+  max_uses INT DEFAULT 50,
   revoked BOOLEAN DEFAULT FALSE,
   is_active BOOLEAN DEFAULT TRUE,
   created_by UUID REFERENCES auth.users(id),
@@ -218,6 +256,8 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id),
   action TEXT NOT NULL,
+  entity_type TEXT, -- 'project', 'schema', 'docs', 'team', 'billing'
+  entity_id UUID,
   metadata JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -436,16 +476,17 @@ CREATE INDEX IF NOT EXISTS idx_payments_workspace ON payments(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username);
 
 -- 7. SEED DATA (Billing Plans)
-INSERT INTO billing_plans (id, price_inr, project_limit, version_limit, validity_days, allow_exports, allow_designer, allow_team, ai_level)
+INSERT INTO billing_plans (id, price_inr, project_limit, version_limit, ai_limit, validity_days, allow_exports, allow_designer, allow_team, ai_level)
 VALUES 
-  ('free', 0, 1, 2, 0, false, false, false, 'db'),
-  ('pro', 1499, 5, 30, 30, true, true, false, 'table'),
-  ('teams', 4999, 20, -1, 30, true, true, true, 'full'),
-  ('business', 9999, -1, -1, 30, true, true, true, 'full')
+  ('free', 0, 1, 2, 5, 0, false, false, false, 'db'),
+  ('pro', 1499, 5, 30, 100, 30, true, true, false, 'table'),
+  ('teams', 4999, 20, -1, 500, 30, true, true, true, 'full'),
+  ('business', 9999, -1, -1, -1, 30, true, true, true, 'full')
 ON CONFLICT (id) DO UPDATE SET
   price_inr = excluded.price_inr,
   project_limit = excluded.project_limit,
   version_limit = excluded.version_limit,
+  ai_limit = excluded.ai_limit,
   validity_days = excluded.validity_days,
   allow_exports = excluded.allow_exports,
   allow_designer = excluded.allow_designer,
@@ -469,7 +510,7 @@ ALTER TABLE documentation_outputs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schema_changes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE beta_usage ENABLE ROW LEVEL SECURITY;
-ALTER TABLE beta_feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
@@ -544,6 +585,32 @@ CREATE POLICY "Projects - Manage in workspace" ON projects FOR ALL USING (
     public.is_admin_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid()
 );
 
+-- PAYMENTS
+DROP POLICY IF EXISTS "Payments - View own workspace" ON payments;
+CREATE POLICY "Payments - View own workspace" ON payments FOR SELECT USING (
+    workspace_id IN (
+        SELECT id FROM workspaces WHERE owner_id = auth.uid()
+        UNION
+        SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    )
+);
+
+-- LEGACY TEAM TABLES
+DROP POLICY IF EXISTS "Team Invites - Access" ON team_invites;
+CREATE POLICY "Team Invites - Access" ON team_invites FOR ALL USING (
+    project_id IN (SELECT id FROM projects WHERE workspace_id IN (
+        SELECT id FROM workspaces WHERE owner_id = auth.uid() UNION SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    ))
+);
+
+DROP POLICY IF EXISTS "Team Members - Access" ON team_members;
+CREATE POLICY "Team Members - Access" ON team_members FOR ALL USING (
+    project_id IN (SELECT id FROM projects WHERE workspace_id IN (
+        SELECT id FROM workspaces WHERE owner_id = auth.uid() UNION SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    ))
+);
+
+
 -- FEATURE TABLES (Common policy for all project-scoped data)
 DO $$ 
 DECLARE 
@@ -551,7 +618,7 @@ DECLARE
 BEGIN
   FOR t IN SELECT table_name FROM information_schema.tables 
            WHERE table_schema = 'public' 
-           AND table_name IN ('schema_versions', 'diagram_states', 'generated_code', 'schema_explanations', 'documentation_outputs', 'project_settings', 'schema_changes')
+           AND table_name IN ('schema_versions', 'diagram_states', 'generated_code', 'schema_explanations', 'documentation_outputs', 'project_settings', 'schema_changes', 'schema_reviews', 'onboarding_guides', 'ask_schema_logs', 'schema_comments')
   LOOP
     EXECUTE 'DROP POLICY IF EXISTS "Project Data Access" ON ' || t;
     EXECUTE 'CREATE POLICY "Project Data Access" ON ' || t || ' FOR ALL USING (
@@ -559,6 +626,7 @@ BEGIN
         SELECT id FROM workspaces WHERE owner_id = auth.uid() UNION SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
       ))
     )';
+    EXECUTE 'ALTER TABLE ' || t || ' ENABLE ROW LEVEL SECURITY';
   END LOOP;
 END $$;
 
@@ -598,6 +666,8 @@ CREATE POLICY "Activity Logs - Insert" ON activity_logs FOR INSERT WITH CHECK (
 GRANT SELECT ON workspace_active_plans TO authenticated, anon;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT SELECT ON workspace_invites TO anon; -- Allow anon to validate tokens
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 
 -- Allow anon to read plans

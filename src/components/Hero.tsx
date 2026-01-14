@@ -144,7 +144,7 @@ export function Hero() {
       <div className="absolute top-0 left-0 right-0 h-24 z-40">
         <div className="app-container h-full flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate('/')}>
-            <Logo size={40} animated={false} withBackground={true} />
+            <Logo size={56} animated={false} withBackground={true} />
             <span className="vizora-brand text-2xl font-bold text-slate-900 tracking-tight">Vizora</span>
           </div>
 
