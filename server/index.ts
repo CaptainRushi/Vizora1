@@ -24,6 +24,7 @@ import schemaReviewRoutes from './src/routes/schemaReview.js';
 import onboardingGuideRoutes from './src/routes/onboardingGuide.js';
 import askSchemaRoutes from './src/routes/askSchema.js';
 import dashboardRoutes from './src/routes/dashboard.js';
+import teamRoutes from './src/routes/team.js';
 import {
     getWorkspacePlan,
     checkProjectLimit,
@@ -722,6 +723,9 @@ app.use('/api/schema', askSchemaRoutes);
 
 // User Dashboard Routes
 app.use('/api/dashboard', dashboardRoutes);
+
+// Team Invite System Routes
+app.use('/api/team', teamRoutes);
 
 
 // --- ROUTES ---

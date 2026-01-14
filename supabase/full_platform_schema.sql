@@ -42,6 +42,36 @@ CREATE TABLE IF NOT EXISTS workspace_members (
     UNIQUE(workspace_id, user_id)
 );
 
+-- Workspace Invites (for secure join link-based team invites)
+CREATE TABLE IF NOT EXISTS workspace_invites (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    token TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'editor', 'viewer', 'member')),
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used_count INT DEFAULT 0,
+    max_uses INT DEFAULT 50,
+    revoked BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Activity Logs (for audit trail)
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id),
+    action TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for team invite system
+CREATE INDEX IF NOT EXISTS idx_workspace_invites_token ON workspace_invites(token);
+CREATE INDEX IF NOT EXISTS idx_workspace_invites_active ON workspace_invites(workspace_id, is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_activity_logs_workspace ON activity_logs(workspace_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS billing_plans (
   id TEXT PRIMARY KEY,
   price_inr INT NOT NULL,
@@ -205,8 +235,27 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Workspace Invites RLS
+ALTER TABLE workspace_invites ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Invites - Admin manage" ON workspace_invites FOR ALL USING (
+    public.is_admin_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid()
+);
+CREATE POLICY "Invites - Public token validate" ON workspace_invites FOR SELECT USING (
+    is_active = TRUE AND revoked = FALSE AND expires_at > NOW()
+);
+
+-- Activity Logs RLS
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Activity Logs - View workspace" ON activity_logs FOR SELECT USING (
+    public.is_member_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid()
+);
+CREATE POLICY "Activity Logs - System insert" ON activity_logs FOR INSERT WITH CHECK (
+    auth.uid() IS NOT NULL
+);
+
 -- 7. GRANTS
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT SELECT ON workspace_invites TO anon; -- Allow anon to validate tokens

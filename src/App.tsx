@@ -27,6 +27,7 @@ const UserDashboard = lazy(() => import('./pages/UserDashboard').then(m => ({ de
 const OnboardingForm = lazy(() => import('./pages/OnboardingForm').then(m => ({ default: m.OnboardingForm })));
 const TeamMembers = lazy(() => import('./pages/TeamMembers').then(m => ({ default: m.TeamMembers })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(m => ({ default: m.InviteAccept })));
+const JoinTeam = lazy(() => import('./pages/JoinTeam').then(m => ({ default: m.JoinTeam })));
 const Help = lazy(() => import('./pages/Help').then(m => ({ default: m.Help })));
 const SignInPage = lazy(() => import('./pages/auth/SignInPage').then(m => ({ default: m.SignInPage })));
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
@@ -174,8 +175,11 @@ function App() {
                         </AuthGuard>
                     } />
 
-                    {/* Public Invite Accept */}
+                    {/* Public Invite Accept (Legacy) */}
                     <Route path="/join" element={<InviteAccept />} />
+
+                    {/* Team Join Link (New secure flow) */}
+                    <Route path="/join/team" element={<JoinTeam />} />
 
                     {/* WORKSPACE ROUTES - Protected */}
                     <Route path="/workspace/:projectId/*" element={

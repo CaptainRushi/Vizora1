@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
     BookOpen,
     Zap,
@@ -21,7 +22,16 @@ interface Section {
 }
 
 export function Help() {
-    const [activeSection, setActiveSection] = useState('getting-started');
+    const [searchParams] = useSearchParams();
+    const sectionFromUrl = searchParams.get('section');
+    const [activeSection, setActiveSection] = useState(sectionFromUrl || 'getting-started');
+
+    // Handle section query parameter changes
+    useEffect(() => {
+        if (sectionFromUrl) {
+            setActiveSection(sectionFromUrl);
+        }
+    }, [sectionFromUrl]);
 
     const sections: Section[] = [
         {
@@ -594,18 +604,30 @@ function ContactSupport() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="border border-gray-100 rounded-xl p-5 bg-white">
-                            <h4 className="font-semibold text-gray-900 mb-2">Report a Bug</h4>
+                        <a
+                            href="https://github.com/CaptainRushi/Vizora1/issues"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block border border-gray-100 rounded-xl p-5 bg-white hover:border-red-200 hover:bg-red-50/30 transition-colors group"
+                        >
+                            <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-red-700">🐛 Report a Bug</h4>
                             <p className="text-sm text-gray-600 leading-relaxed">
-                                encountering issues? Email us with a sample of your schema and we'll fix it ASAP.
+                                Found an issue? Report it on our GitHub Issues page and we'll fix it ASAP.
                             </p>
-                        </div>
-                        <div className="border border-gray-100 rounded-xl p-5 bg-white">
-                            <h4 className="font-semibold text-gray-900 mb-2">Feature Request</h4>
+                            <p className="text-xs text-indigo-600 mt-2 font-medium">Open GitHub Issues →</p>
+                        </a>
+                        <a
+                            href="https://github.com/CaptainRushi/Vizora1/issues"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block border border-gray-100 rounded-xl p-5 bg-white hover:border-purple-200 hover:bg-purple-50/30 transition-colors group"
+                        >
+                            <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-purple-700">✨ Request Feature</h4>
                             <p className="text-sm text-gray-600 leading-relaxed">
-                                Want to see a new feature? We'd love to hear your ideas for improving Vizora.
+                                Want to see a new feature? Submit your ideas on our GitHub Issues page.
                             </p>
-                        </div>
+                            <p className="text-xs text-indigo-600 mt-2 font-medium">Open GitHub Issues →</p>
+                        </a>
                     </div>
                 </div>
             </div>

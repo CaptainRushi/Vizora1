@@ -18,6 +18,7 @@ export * from './VersionCompare';
 export * from './UserDashboard';
 export * from './TeamMembers';
 export * from './InviteAccept';
+export * from './JoinTeam';
 export * from './Billing';
 export * from './OnboardingForm';
 export * from './Help';

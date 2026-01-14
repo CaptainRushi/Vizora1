@@ -515,6 +515,7 @@ export function UserDashboard() {
             .select('*')
             .eq('workspace_id', workspaceId)
             .eq('revoked', false)
+            .eq('is_active', true)
             .gt('expires_at', new Date().toISOString());
 
         return data || [];
@@ -605,7 +606,7 @@ export function UserDashboard() {
         try {
             const { error } = await supabase
                 .from('workspace_invites')
-                .update({ revoked: true })
+                .update({ revoked: true, is_active: false })
                 .eq('id', inviteId);
 
             if (error) throw error;
@@ -916,7 +917,7 @@ export function UserDashboard() {
                                 </div>
                                 <h2 className="text-lg font-bold text-gray-900">Team & Workspace Access</h2>
                             </div>
-                            {team?.workspace_type === 'team' && identity?.role === 'admin' && (
+                            {identity?.role === 'admin' && (
                                 <button
                                     onClick={() => setShowInviteModal(true)}
                                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all"
@@ -1040,7 +1041,7 @@ export function UserDashboard() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <button
-                                                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join?token=${invite.token}`)}
+                                                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join/team?token=${invite.token}`)}
                                                         className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                                         title="Copy Link"
                                                     >
@@ -1203,21 +1204,25 @@ export function UserDashboard() {
                             <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-600">Documentation</span>
                         </a>
                         <a
-                            href="mailto:vizoraofficial9@gmail.com?subject=Bug Report"
+                            href="https://github.com/CaptainRushi/Vizora1/issues"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="flex flex-col items-center gap-3 p-4 bg-gray-50 rounded-xl hover:bg-red-50 hover:text-red-600 transition-colors group"
                         >
                             <Bug className="w-6 h-6 text-gray-400 group-hover:text-red-600" />
                             <span className="text-sm font-medium text-gray-700 group-hover:text-red-600">Report a Bug</span>
                         </a>
                         <a
-                            href="mailto:vizoraofficial9@gmail.com?subject=Feature Request"
+                            href="https://github.com/CaptainRushi/Vizora1/issues"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="flex flex-col items-center gap-3 p-4 bg-gray-50 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-colors group"
                         >
                             <Lightbulb className="w-6 h-6 text-gray-400 group-hover:text-amber-600" />
                             <span className="text-sm font-medium text-gray-700 group-hover:text-amber-600">Request Feature</span>
                         </a>
                         <a
-                            href="mailto:vizoraofficial9@gmail.com"
+                            href="/help?section=contact"
                             className="flex flex-col items-center gap-3 p-4 bg-gray-50 rounded-xl hover:bg-green-50 hover:text-green-600 transition-colors group"
                         >
                             <Headphones className="w-6 h-6 text-gray-400 group-hover:text-green-600" />
@@ -1266,6 +1271,7 @@ export function UserDashboard() {
             {showInviteModal && identity?.workspace && (
                 <InviteModal
                     workspaceId={identity.workspace.id}
+                    workspaceName={identity.workspace.name}
                     onClose={() => setShowInviteModal(false)}
                     onInviteGenerated={() => {
                         if (identity.workspace?.id) {
