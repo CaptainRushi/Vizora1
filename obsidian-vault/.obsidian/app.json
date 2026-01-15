@@ -1,0 +1,14 @@
+{
+    "promptDelete": true,
+    "attachmentFolderPath": "",
+    "alwaysUpdateLinks": true,
+    "newFileLocation": "current",
+    "newLinkFormat": "relative",
+    "useMarkdownLinks": false,
+    "autoConvertHtml": true,
+    "defaultViewMode": "preview",
+    "showFrontmatter": true,
+    "vimMode": false,
+    "showUnsupportedFiles": false,
+    "livePreview": true
+}

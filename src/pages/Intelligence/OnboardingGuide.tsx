@@ -96,7 +96,7 @@ export default function OnboardingGuide() {
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-3xl p-8 md:p-12 shadow-sm prose prose-slate prose-indigo max-w-none">
+            <div className="bg-white border border-slate-200 rounded-3xl p-8 md:p-12 shadow-sm prose prose-sm prose-slate prose-indigo max-w-none [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:text-base [&_h3]:font-semibold [&_h4]:text-sm [&_h4]:font-medium">
                 <ReactMarkdown>{content || ''}</ReactMarkdown>
             </div>
 

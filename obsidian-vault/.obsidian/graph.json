@@ -1,0 +1,80 @@
+{
+    "colorGroups": [
+        {
+            "query": "path:00-Overview",
+            "color": {
+                "a": 1,
+                "rgb": 5025616
+            }
+        },
+        {
+            "query": "path:01-Architecture",
+            "color": {
+                "a": 1,
+                "rgb": 16744448
+            }
+        },
+        {
+            "query": "path:02-Features",
+            "color": {
+                "a": 1,
+                "rgb": 65280
+            }
+        },
+        {
+            "query": "path:03-Database",
+            "color": {
+                "a": 1,
+                "rgb": 255
+            }
+        },
+        {
+            "query": "path:04-Backend",
+            "color": {
+                "a": 1,
+                "rgb": 16711935
+            }
+        },
+        {
+            "query": "path:05-Frontend",
+            "color": {
+                "a": 1,
+                "rgb": 65535
+            }
+        },
+        {
+            "query": "path:06-Billing",
+            "color": {
+                "a": 1,
+                "rgb": 16776960
+            }
+        },
+        {
+            "query": "path:07-Roadmap",
+            "color": {
+                "a": 1,
+                "rgb": 16711680
+            }
+        }
+    ],
+    "search": "",
+    "showTags": true,
+    "showAttachments": false,
+    "hideUnresolved": false,
+    "showOrphans": true,
+    "collapse": {
+        "search": false,
+        "unresolved": true,
+        "attachments": false
+    },
+    "localJumps": 1,
+    "localBacklinks": true,
+    "localForelinks": true,
+    "localInterlinks": false,
+    "centerStrength": 0.518713248970312,
+    "repelStrength": 10,
+    "linkStrength": 1,
+    "linkDistance": 250,
+    "scale": 1,
+    "close": false
+}
