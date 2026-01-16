@@ -9,6 +9,7 @@ import {
     Eye, EyeOff, ArrowRight, Sparkles, Shield, HelpCircle
 } from 'lucide-react';
 import PasteSchemaEmptyState from '../../components/dashboard/PasteSchemaEmptyState';
+import { useAuth } from '../../context/AuthContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INTERFACES — DEEP REPLY CONTEXT MODEL
@@ -62,11 +63,7 @@ interface Message {
     response?: DeepReplyResponse;
 }
 
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> local
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RISK BADGE COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -445,15 +442,7 @@ const ConfidenceLimits = ({ data }: { data: ConfidenceAndLimits }) => {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
-<<<<<<< HEAD
-=======
-import { useAuth } from '../../context/AuthContext';
-// ... imports
 
-// ... components
-
->>>>>>> Stashed changes
->>>>>>> local
 export default function AskSchema() {
     const { user } = useAuth();
     const { projectId } = useProject();
