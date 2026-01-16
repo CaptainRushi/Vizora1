@@ -122,14 +122,12 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
 
 const ERDiagramsContent = () => {
     const { projectId, billing } = useProjectContext();
-    const { fitView } = useReactFlow();
+    const { fitView, getEdges } = useReactFlow();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [loading, setLoading] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [hoveredNode, setHoveredNode] = useState<string | null>(null);
 
     // Handle Column Hover
     const onColumnMouseEnter = useCallback((tableName: string, columnName: string) => {
@@ -149,12 +147,14 @@ const ERDiagramsContent = () => {
             };
         }));
 
+        const currentEdges = getEdges(); // Safe access without dependency
+
         setNodes((nds) => nds.map((n) => {
             if (n.id === tableName) {
                 return { ...n, data: { ...n.data, hoveredColumn: columnName } };
             }
             // Also highlight the target/source table's column if it's a direct link
-            const connectedEdge = edges.find(e =>
+            const connectedEdge = currentEdges.find(e =>
                 (e.source === tableName && e.data?.fromCol === columnName && e.target === n.id) ||
                 (e.target === tableName && e.data?.toCol === columnName && e.source === n.id)
             );
@@ -166,10 +166,9 @@ const ERDiagramsContent = () => {
 
             return n;
         }));
-    }, [edges, setEdges, setNodes]);
+    }, [setEdges, setNodes, getEdges]); // Removed 'edges' dependency
 
     const onColumnMouseLeave = useCallback(() => {
-        setHoveredNode(null);
         setEdges((eds) => eds.map((edge) => ({
             ...edge,
             animated: true,
@@ -301,8 +300,6 @@ const ERDiagramsContent = () => {
 
     // Handle Hover Interaction
     const onNodeMouseEnter = useCallback((_: any, node: any) => {
-        setHoveredNode(node.id);
-
         // 1. Highlight connected edges
         setEdges((eds) => eds.map((edge) => {
             const isConnected = edge.source === node.id || edge.target === node.id;
@@ -326,7 +323,6 @@ const ERDiagramsContent = () => {
     }, [setEdges, setNodes]);
 
     const onNodeMouseLeave = useCallback(() => {
-        setHoveredNode(null);
         setEdges((eds) => eds.map((edge) => ({
             ...edge,
             animated: true,
