@@ -41,8 +41,6 @@ import { ContextMenu } from '../components/schema-designer/ContextMenu';
 import { UnifiedSchema, UnifiedColumn } from '../lib/schema-types';
 import { supabase } from '../lib/supabase';
 import { generateSql } from '../lib/generators';
-import { api } from '../lib/api';
-import { BillingGate } from '../components/BillingGate';
 import { TableNode } from '../components/schema-designer/TableNode';
 import { SchemaEdge } from '../components/schema-designer/SchemaEdge';
 import { LoadingSection } from '../components/LoadingSection';
@@ -74,8 +72,6 @@ function SchemaDesignerContent() {
     const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false);
     const [generatedCode, setGeneratedCode] = useState('');
     const [layoutRegistry, setLayoutRegistry] = useState<Record<string, { x: number; y: number }>>({});
-    const [billing, setBilling] = useState<any>(null);
-    const [billingLoading, setBillingLoading] = useState(true);
     const [copied, setCopied] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, type: 'node' | 'pane', id?: string } | null>(null);
     const [history, setHistory] = useState<UnifiedSchema[]>([]);
@@ -274,15 +270,11 @@ function SchemaDesignerContent() {
     }, [undo, redo]);
 
     const loadSchema = useCallback(async () => {
-        if (!projectId) {
-            setBillingLoading(false);
-            return;
-        }
+        if (!projectId) return;
         try {
-            const [dResult, vResult, bResult] = await Promise.all([
+            const [dResult, vResult] = await Promise.all([
                 supabase.from('diagram_states').select('diagram_json').eq('project_id', projectId).maybeSingle(),
-                supabase.from('schema_versions').select('normalized_schema').eq('project_id', projectId).order('version', { ascending: false }).limit(1).maybeSingle(),
-                api.getBilling(projectId)
+                supabase.from('schema_versions').select('normalized_schema').eq('project_id', projectId).order('version', { ascending: false }).limit(1).maybeSingle()
             ]);
 
             if (dResult.data?.diagram_json) {
@@ -295,9 +287,7 @@ function SchemaDesignerContent() {
                 setEdges(savedEdges || []);
             }
             if (vResult.data) setSchema(vResult.data.normalized_schema as UnifiedSchema);
-            if (bResult) setBilling(bResult);
         } catch (err) { console.error("Designer Load Error", err); }
-        finally { setBillingLoading(false); }
     }, [projectId, setEdges]);
 
     useEffect(() => { loadSchema(); }, [loadSchema]);
@@ -383,16 +373,12 @@ function SchemaDesignerContent() {
         mouseDownPos.current = null;
     }, [activeTool, createTable, screenToFlowPosition]);
 
-    if (projectLoading || billingLoading) {
+    if (projectLoading) {
         return (
             <div className="h-[calc(100vh-8rem)] flex items-center justify-center">
                 <LoadingSection title="Initalizing Designer..." subtitle="Preparing your visual schema workspace and collaborator sync." />
             </div>
         );
-    }
-
-    if (billing && !billing.plan.designer_enabled) {
-        return <div className="h-[calc(100vh-8rem)] flex items-center justify-center"><BillingGate featureName="Schema Designer" description="Unlock visual design tools." /></div>;
     }
 
     return (

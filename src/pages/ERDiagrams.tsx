@@ -126,7 +126,7 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
 };
 
 const ERDiagramsContent = () => {
-    const { projectId, billing } = useProjectContext();
+    const { projectId } = useProjectContext();
     const { settings } = useSettings();
     const { fitView, getEdges } = useReactFlow();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -371,7 +371,7 @@ const ERDiagramsContent = () => {
     }, [loadDiagram]);
 
     return (
-        <div className={`h-[calc(100vh-8rem)] relative ${isDarkMode ? 'bg-slate-900' : 'bg-slate-50'} border border-slate-200 rounded-3xl overflow-hidden transition-colors duration-300 font-sans`}>
+        <div className={`h-[calc(100vh-3rem)] relative ${isDarkMode ? 'bg-slate-900' : 'bg-slate-50'} border border-slate-200 rounded-3xl overflow-hidden transition-colors duration-300 font-sans`}>
             <div className="absolute top-4 left-20 z-10 flex gap-2 items-center">
                 <div className="bg-white/80 backdrop-blur-md border border-slate-200 px-4 py-2 rounded-xl shadow-sm text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
                     <Share2 className="h-3.5 w-3.5" />
@@ -419,10 +419,6 @@ const ERDiagramsContent = () => {
                         { label: isDarkMode ? 'Switch to Light' : 'Switch to Dark', onClick: () => setIsDarkMode(!isDarkMode), icon: isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" /> },
                         {
                             label: 'Export Diagram (PNG)', onClick: () => {
-                                if (!billing?.plan.export_enabled) {
-                                    alert("Unlock Pro to export diagrams.");
-                                    return;
-                                }
                                 alert('Exporting diagram...');
                             }, icon: <Download className="h-4 w-4" />
                         },

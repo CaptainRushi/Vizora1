@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useProject } from '../hooks/useProject';
-import { FileText, Download, Loader2, FileDown, Code, Eye, Lock } from 'lucide-react';
+import { FileText, Download, Loader2, FileDown, Code, Eye } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { api } from '../lib/api';
 import { FeedbackNudge } from '../components/beta/FeedbackNudge';
 import { LoadingSection } from '../components/LoadingSection';
 
@@ -18,8 +17,6 @@ export function AutoDocs() {
     const { projectId, currentStep, loading: projectLoading } = useProject();
     const [doc, setDoc] = useState<DocOutput | null>(null);
     const [view, setView] = useState<'preview' | 'source'>('preview');
-    const [billing, setBilling] = useState<any>(null);
-    const [billingLoading, setBillingLoading] = useState(true);
 
     const fetchDocs = async (silent = false) => {
         if (!projectId) return;
@@ -52,9 +49,6 @@ export function AutoDocs() {
 
         fetchDocs();
 
-        // Fetch billing info once
-        api.getBilling(projectId).then(setBilling).finally(() => setBillingLoading(false));
-
         const interval = setInterval(() => {
             fetchDocs(true);
         }, 5000);
@@ -64,10 +58,6 @@ export function AutoDocs() {
 
 
     const handleDownloadPdf = () => {
-        if (!billing?.plan.export_enabled) {
-            alert("Unlock Pro to download documentation artifacts.");
-            return;
-        }
         if (doc?.pdf_url) {
             window.open(doc.pdf_url, '_blank');
         }
@@ -125,9 +115,6 @@ export function AutoDocs() {
                     >
                         <Download className="h-4 w-4" />
                         Download PDF
-                        {!billing?.plan.export_enabled && !billingLoading && (
-                            <Lock className="h-3 w-3 absolute -top-1 -right-1 text-white bg-indigo-900 rounded-full p-0.5 shadow-lg border border-white" />
-                        )}
                     </button>
                 </div>
             </div>
