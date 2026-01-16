@@ -5,6 +5,7 @@ import { FileText, Download, Loader2, FileDown, Code, Eye, Lock } from 'lucide-r
 import ReactMarkdown from 'react-markdown';
 import { api } from '../lib/api';
 import { FeedbackNudge } from '../components/beta/FeedbackNudge';
+import { LoadingSection } from '../components/LoadingSection';
 
 interface DocOutput {
     markdown: string;
@@ -133,13 +134,10 @@ export function AutoDocs() {
 
             {!doc ? (
                 <div className="flex flex-col items-center justify-center rounded-[3rem] border-4 border-dashed border-indigo-50 bg-white p-20 text-center shadow-2xl shadow-indigo-100/20">
-                    <div className="h-24 w-24 bg-indigo-50 rounded-full flex items-center justify-center mb-8 animate-pulse">
-                        <FileText className="h-12 w-12 text-indigo-400" />
-                    </div>
-                    <h3 className="text-2xl font-black text-gray-900 tracking-tight">Generating Documentation...</h3>
-                    <p className="mt-4 text-gray-500 max-w-sm font-medium leading-relaxed">
-                        Compiling schema analysis, change logs, and visualizations into a unified specification.
-                    </p>
+                    <LoadingSection
+                        title="Generating Documentation..."
+                        subtitle="Compiling schema analysis, change logs, and visualizations into a unified specification."
+                    />
                     <div className="mt-10 flex items-center gap-3 text-indigo-600 font-black text-xs uppercase tracking-widest">
                         <Loader2 className="h-5 w-5 animate-spin" />
                         Scanning latest snapshot

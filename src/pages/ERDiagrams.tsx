@@ -20,17 +20,22 @@ import { MacDots } from '../components/MacDots';
 import { LoadingSection } from '../components/LoadingSection';
 import { supabase } from '../lib/supabase';
 import { FeedbackNudge } from '../components/beta/FeedbackNudge';
+import { useSettings } from '../context/SettingsContext';
 
 // --- CUSTOM COMPONENTS ---
 
 const TableNode = ({ data, selected }: NodeProps) => {
     return (
-        <div className={`bg-white border-2 ${selected ? 'border-indigo-500 ring-4 ring-indigo-50' : 'border-slate-200'} rounded-xl shadow-lg min-w-[220px] overflow-hidden transition-all duration-200`}>
+        <div className={`
+            ${data.isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'} 
+            border-2 ${selected ? 'border-indigo-500 ring-4 ring-indigo-50 dark:ring-indigo-900/30' : ''} 
+            rounded-xl shadow-lg min-w-[220px] overflow-hidden transition-all duration-200
+        `}>
             {/* Header */}
-            <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div className={`${data.isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-100'} px-4 py-3 border-b flex items-center justify-between`}>
                 <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                    <span className="font-black text-slate-800 text-xs uppercase tracking-tight">{data.label}</span>
+                    <span className={`font-black text-xs uppercase tracking-tight ${data.isDark ? 'text-slate-200' : 'text-slate-800'}`}>{data.label}</span>
                 </div>
                 {data.isHovered && <Info className="h-3 w-3 text-indigo-400 animate-pulse" />}
             </div>
@@ -42,14 +47,14 @@ const TableNode = ({ data, selected }: NodeProps) => {
                         key={name}
                         onMouseEnter={() => data.onColumnMouseEnter?.(name)}
                         onMouseLeave={() => data.onColumnMouseLeave?.()}
-                        className={`relative flex items-center justify-between px-4 py-2 text-[11px] transition-colors group/row ${data.hoveredColumn === name ? 'bg-indigo-50/50' : 'hover:bg-slate-50'
+                        className={`relative flex items-center justify-between px-4 py-2 text-[11px] transition-colors group/row ${data.hoveredColumn === name ? (data.isDark ? 'bg-indigo-900/40' : 'bg-indigo-50/50') : (data.isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50')
                             }`}
                     >
                         <Handle
                             type="target"
                             position={Position.Left}
                             id={`${data.label}.${name}.target`}
-                            className={`w-2 h-2 !bg-slate-300 border-2 border-white transition-transform ${data.hoveredColumn === name ? 'scale-125 !bg-indigo-500' : ''
+                            className={`w-2 h-2 !bg-slate-300 dark:!bg-slate-600 border-2 border-white dark:border-slate-900 transition-transform ${data.hoveredColumn === name ? 'scale-125 !bg-indigo-500' : ''
                                 }`}
                         />
 
@@ -61,15 +66,15 @@ const TableNode = ({ data, selected }: NodeProps) => {
                             ) : (
                                 <div className="w-3" />
                             )}
-                            <span className={`truncate font-bold ${col.primary ? 'text-slate-900' : 'text-slate-600'}`}>{name}</span>
-                            <span className="text-[9px] text-slate-400 font-mono uppercase truncate ml-auto italic opacity-60">{col.type}</span>
+                            <span className={`truncate font-bold ${col.primary ? (data.isDark ? 'text-slate-100' : 'text-slate-900') : (data.isDark ? 'text-slate-400' : 'text-slate-600')}`}>{name}</span>
+                            <span className="text-[9px] text-slate-500 dark:text-slate-500 font-mono uppercase truncate ml-auto italic opacity-60">{col.type}</span>
                         </div>
 
                         <Handle
                             type="source"
                             position={Position.Right}
                             id={`${data.label}.${name}.source`}
-                            className={`w-2 h-2 !bg-indigo-400 border-2 border-white transition-transform ${data.hoveredColumn === name ? 'scale-125 !bg-indigo-600' : ''
+                            className={`w-2 h-2 !bg-indigo-400 border-2 border-white dark:border-slate-900 transition-transform ${data.hoveredColumn === name ? 'scale-125 !bg-indigo-600' : ''
                                 }`}
                         />
                     </div>
@@ -122,12 +127,29 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
 
 const ERDiagramsContent = () => {
     const { projectId, billing } = useProjectContext();
+    const { settings } = useSettings();
     const { fitView, getEdges } = useReactFlow();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [loading, setLoading] = useState(false);
-    const [isDarkMode, setIsDarkMode] = useState(false);
+
+    // Derived dark mode for diagram
+    const effectiveIsDark = settings.appearance.diagramTheme === 'auto'
+        ? document.documentElement.classList.contains('dark')
+        : settings.appearance.diagramTheme === 'dark';
+
+    const [isDarkMode, setIsDarkMode] = useState(effectiveIsDark);
     const [showLabels, setShowLabels] = useState(true);
+
+    // Sync local dark mode with global settings
+    useEffect(() => {
+        setIsDarkMode(effectiveIsDark);
+        // Refresh nodes to apply dark mode
+        setNodes(nds => nds.map(n => ({
+            ...n,
+            data: { ...n.data, isDark: effectiveIsDark }
+        })));
+    }, [effectiveIsDark]);
 
     // Handle Column Hover
     const onColumnMouseEnter = useCallback((tableName: string, columnName: string) => {
@@ -228,7 +250,8 @@ const ERDiagramsContent = () => {
                     data: {
                         ...n.data,
                         onColumnMouseEnter: (col: string) => onColumnMouseEnter(n.id, col),
-                        onColumnMouseLeave
+                        onColumnMouseLeave,
+                        isDark: isDarkMode
                     }
                 }));
                 setNodes(nodesWithHandlers);
@@ -250,7 +273,8 @@ const ERDiagramsContent = () => {
                         label: name,
                         columns: table.columns,
                         onColumnMouseEnter: (col: string) => onColumnMouseEnter(name, col),
-                        onColumnMouseLeave
+                        onColumnMouseLeave,
+                        isDark: isDarkMode
                     }
                 }));
 

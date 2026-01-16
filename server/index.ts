@@ -25,6 +25,8 @@ import onboardingGuideRoutes from './src/routes/onboardingGuide.js';
 import askSchemaRoutes from './src/routes/askSchema.js';
 import dashboardRoutes from './src/routes/dashboard.js';
 import teamRoutes from './src/routes/team.js';
+import platformSettingsRoutes from './src/routes/platformSettings.js';
+import projectSettingsRoutes from './src/routes/projectSettings.js';
 import {
     getWorkspacePlan,
     checkProjectLimit,
@@ -1988,6 +1990,10 @@ app.delete('/projects/:id/team/:type/:itemId', requireProjectContext, async (req
         res.status(500).json({ error: err.message });
     }
 });
+
+// Platform Settings Routes
+app.use('/api/settings', platformSettingsRoutes);
+app.use('/api/project-settings', projectSettingsRoutes);
 
 app.listen(PORT, () => {
     console.log(`Backend running on http://localhost:${PORT}`);

@@ -28,7 +28,7 @@ export function LandingPage() {
     };
 
     return (
-        <div className="min-h-screen bg-white font-sans selection:bg-indigo-100 selection:text-indigo-900">
+        <div className="min-h-screen bg-white dark:bg-slate-950 font-sans selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-900 dark:selection:text-indigo-100">
             {/* 1. HERO SECTION (Includes Navigation and Ambient Floating Cards) */}
             <Hero />
 

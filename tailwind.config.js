@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {
@@ -31,6 +32,8 @@ export default {
         'collapse': 'collapse 220ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         'successPulse': 'successPulse 300ms ease-out',
         'thinkingPulse': 'thinkingPulse 1.2s ease-in-out infinite',
+        'spin-slow': 'spin 2s linear infinite',
+        'spin-reverse': 'spin 1.5s linear infinite reverse',
       },
       keyframes: {
         float: {
@@ -86,6 +89,23 @@ export default {
         thinkingPulse: {
           '0%, 100%': { opacity: '0.5' },
           '50%': { opacity: '0.8' },
+        },
+        spin: {
+          from: { transform: 'rotate(0deg)' },
+          to: { transform: 'rotate(360deg)' },
+        },
+        mesh: {
+          '0%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+          '100%': { backgroundPosition: '0% 50%' },
+        },
+        pulse: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.5' },
+        },
+        bounce: {
+          '0%, 100%': { transform: 'translateY(-25%)', animationTimingFunction: 'cubic-bezier(0.8,0,1,1)' },
+          '50%': { transform: 'translateY(0)', animationTimingFunction: 'cubic-bezier(0,0,0.2,1)' },
         },
       }
     },

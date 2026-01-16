@@ -63,6 +63,33 @@ CREATE TABLE IF NOT EXISTS billing_plans (
   ai_level TEXT NOT NULL CHECK (ai_level IN ('none', 'db', 'table', 'full'))
 );
 
+-- Ensure all columns exist (migration for existing dev dbs)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing_plans' AND column_name = 'ai_limit') THEN
+        ALTER TABLE billing_plans ADD COLUMN ai_limit INT DEFAULT -1;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing_plans' AND column_name = 'validity_days') THEN
+        ALTER TABLE billing_plans ADD COLUMN validity_days INT NOT NULL DEFAULT 30;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing_plans' AND column_name = 'allow_exports') THEN
+        ALTER TABLE billing_plans ADD COLUMN allow_exports BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing_plans' AND column_name = 'allow_designer') THEN
+        ALTER TABLE billing_plans ADD COLUMN allow_designer BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing_plans' AND column_name = 'allow_team') THEN
+        ALTER TABLE billing_plans ADD COLUMN allow_team BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billing_plans' AND column_name = 'ai_level') THEN
+        ALTER TABLE billing_plans ADD COLUMN ai_level TEXT DEFAULT 'none';
+        -- Add constraint if missing
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'billing_plans_ai_level_check') THEN
+            ALTER TABLE billing_plans ADD CONSTRAINT billing_plans_ai_level_check CHECK (ai_level IN ('none', 'db', 'table', 'full'));
+        END IF;
+    END IF;
+END $$;
+
 -- 2.5 PAYMENTS (Log)
 CREATE TABLE IF NOT EXISTS payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -98,11 +125,41 @@ CREATE TABLE IF NOT EXISTS workspace_usage (
 CREATE TABLE IF NOT EXISTS projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
+  description TEXT,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'archived')),
   schema_type TEXT NOT NULL, -- sql | prisma | drizzle
   current_step TEXT DEFAULT 'schema',
   workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
   owner_id UUID REFERENCES auth.users(id), 
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2.8.1 PROJECT SETTINGS (Schema Behavior)
+CREATE TABLE IF NOT EXISTS project_schema_settings (
+  project_id UUID PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  input_mode TEXT DEFAULT 'mixed' CHECK (input_mode IN ('sql', 'prisma', 'mixed')),
+  auto_version BOOLEAN DEFAULT TRUE,
+  version_naming TEXT DEFAULT 'auto' CHECK (version_naming IN ('auto', 'timestamp', 'custom')),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2.8.2 PROJECT SETTINGS (Intelligence & AI)
+CREATE TABLE IF NOT EXISTS project_intelligence_settings (
+  project_id UUID PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  explanation_depth TEXT DEFAULT 'concise' CHECK (explanation_depth IN ('concise', 'detailed')),
+  evidence_strict BOOLEAN DEFAULT TRUE,
+  auto_review BOOLEAN DEFAULT TRUE,
+  auto_onboarding BOOLEAN DEFAULT TRUE,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2.8.3 PROJECT MEMBERS (Access Control)
+CREATE TABLE IF NOT EXISTS project_members (
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  role TEXT DEFAULT 'editor' CHECK (role IN ('viewer', 'editor', 'admin')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (project_id, user_id)
 );
 
 -- 2.9 SCHEMA VERSIONS
@@ -288,6 +345,57 @@ CREATE TABLE IF NOT EXISTS team_members (
   email TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('viewer', 'editor', 'admin')),
   joined_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PLATFORM SETTINGS TABLES
+
+-- User Appearance Settings
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  color_mode TEXT NOT NULL DEFAULT 'light' CHECK (color_mode IN ('light', 'dark', 'system')),
+  diagram_theme TEXT NOT NULL DEFAULT 'auto' CHECK (diagram_theme IN ('light', 'dark', 'auto')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- User Interaction Settings
+CREATE TABLE IF NOT EXISTS interaction_settings (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  reduced_motion BOOLEAN NOT NULL DEFAULT FALSE,
+  auto_focus_schema BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Workspace Intelligence Settings
+CREATE TABLE IF NOT EXISTS intelligence_settings (
+  workspace_id UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+  explanation_mode TEXT NOT NULL DEFAULT 'developer' CHECK (explanation_mode IN ('developer', 'pm', 'onboarding')),
+  evidence_strict BOOLEAN NOT NULL DEFAULT TRUE,
+  auto_schema_review BOOLEAN NOT NULL DEFAULT TRUE,
+  auto_onboarding BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- User Notification Settings
+CREATE TABLE IF NOT EXISTS notification_settings (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email_schema_changes BOOLEAN NOT NULL DEFAULT TRUE,
+  email_team_activity BOOLEAN NOT NULL DEFAULT FALSE,
+  email_ai_summary BOOLEAN NOT NULL DEFAULT FALSE,
+  inapp_schema BOOLEAN NOT NULL DEFAULT TRUE,
+  inapp_team BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Workspace Privacy Settings
+CREATE TABLE IF NOT EXISTS privacy_settings (
+  workspace_id UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+  retain_all_versions BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3. SECURITY HELPER FUNCTIONS (After tables are defined)
@@ -517,6 +625,14 @@ ALTER TABLE workspace_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE interaction_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE intelligence_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE privacy_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_schema_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_intelligence_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
 
 -- 8.1 POLICIES
 
@@ -662,6 +778,60 @@ CREATE POLICY "Activity Logs - View workspace" ON activity_logs FOR SELECT USING
 DROP POLICY IF EXISTS "Activity Logs - Insert" ON activity_logs;
 CREATE POLICY "Activity Logs - Insert" ON activity_logs FOR INSERT WITH CHECK (
     auth.uid() IS NOT NULL
+);
+
+-- USER SETTINGS (User-scoped)
+DROP POLICY IF EXISTS "User Settings - Manage self" ON user_settings;
+CREATE POLICY "User Settings - Manage self" ON user_settings FOR ALL USING (user_id = auth.uid());
+
+-- INTERACTION SETTINGS (User-scoped)
+DROP POLICY IF EXISTS "Interaction Settings - Manage self" ON interaction_settings;
+CREATE POLICY "Interaction Settings - Manage self" ON interaction_settings FOR ALL USING (user_id = auth.uid());
+
+-- NOTIFICATION SETTINGS (User-scoped)
+DROP POLICY IF EXISTS "Notification Settings - Manage self" ON notification_settings;
+CREATE POLICY "Notification Settings - Manage self" ON notification_settings FOR ALL USING (user_id = auth.uid());
+
+-- INTELLIGENCE SETTINGS (Workspace-scoped)
+DROP POLICY IF EXISTS "Intelligence Settings - View" ON intelligence_settings;
+CREATE POLICY "Intelligence Settings - View" ON intelligence_settings FOR SELECT USING (
+    public.is_member_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid()
+);
+DROP POLICY IF EXISTS "Intelligence Settings - Manage" ON intelligence_settings;
+CREATE POLICY "Intelligence Settings - Manage" ON intelligence_settings FOR ALL USING (
+    public.is_admin_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid()
+);
+
+-- PRIVACY SETTINGS (Workspace-scoped)
+DROP POLICY IF EXISTS "Privacy Settings - View" ON privacy_settings;
+CREATE POLICY "Privacy Settings - View" ON privacy_settings FOR SELECT USING (
+    public.is_member_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid()
+);
+DROP POLICY IF EXISTS "Privacy Settings - Manage" ON privacy_settings;
+CREATE POLICY "Privacy Settings - Manage" ON privacy_settings FOR ALL USING (
+    public.is_admin_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid()
+);
+
+-- PROJECT SCHEMA SETTINGS
+DROP POLICY IF EXISTS "Project Schema Settings - Manage" ON project_schema_settings;
+CREATE POLICY "Project Schema Settings - Manage" ON project_schema_settings FOR ALL USING (
+    EXISTS (SELECT 1 FROM projects p WHERE p.id = project_id AND (p.owner_id = auth.uid() OR public.is_member_of(p.workspace_id)))
+);
+
+-- PROJECT INTELLIGENCE SETTINGS
+DROP POLICY IF EXISTS "Project Intelligence Settings - Manage" ON project_intelligence_settings;
+CREATE POLICY "Project Intelligence Settings - Manage" ON project_intelligence_settings FOR ALL USING (
+    EXISTS (SELECT 1 FROM projects p WHERE p.id = project_id AND (p.owner_id = auth.uid() OR public.is_member_of(p.workspace_id)))
+);
+
+-- PROJECT MEMBERS
+DROP POLICY IF EXISTS "Project Members - View" ON project_members;
+CREATE POLICY "Project Members - View" ON project_members FOR SELECT USING (
+    EXISTS (SELECT 1 FROM projects p WHERE p.id = project_id AND (p.owner_id = auth.uid() OR public.is_member_of(p.workspace_id)))
+);
+DROP POLICY IF EXISTS "Project Members - Manage" ON project_members;
+CREATE POLICY "Project Members - Manage" ON project_members FOR ALL USING (
+    EXISTS (SELECT 1 FROM projects p WHERE p.id = project_id AND (p.owner_id = auth.uid() OR public.is_admin_of(p.workspace_id)))
 );
 
 -- GRANT PERMISSIONS

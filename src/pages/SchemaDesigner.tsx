@@ -45,6 +45,7 @@ import { api } from '../lib/api';
 import { BillingGate } from '../components/BillingGate';
 import { TableNode } from '../components/schema-designer/TableNode';
 import { SchemaEdge } from '../components/schema-designer/SchemaEdge';
+import { LoadingSection } from '../components/LoadingSection';
 
 const nodeTypes = {
     table: TableNode,
@@ -193,6 +194,8 @@ function SchemaDesignerContent() {
         next.tables[tableName].columns[id] = { type: 'varchar' };
         addToHistory(next);
     }, [schema, addToHistory]);
+
+
 
     useEffect(() => {
         const flowNodes = Object.entries(schema.tables).map(([name, table], idx) => {
@@ -380,7 +383,14 @@ function SchemaDesignerContent() {
         mouseDownPos.current = null;
     }, [activeTool, createTable, screenToFlowPosition]);
 
-    if (projectLoading || billingLoading) return null;
+    if (projectLoading || billingLoading) {
+        return (
+            <div className="h-[calc(100vh-8rem)] flex items-center justify-center">
+                <LoadingSection title="Initalizing Designer..." subtitle="Preparing your visual schema workspace and collaborator sync." />
+            </div>
+        );
+    }
+
     if (billing && !billing.plan.designer_enabled) {
         return <div className="h-[calc(100vh-8rem)] flex items-center justify-center"><BillingGate featureName="Schema Designer" description="Unlock visual design tools." /></div>;
     }
@@ -606,7 +616,7 @@ function SchemaDesignerContent() {
                     </div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 }
 

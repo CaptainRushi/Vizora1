@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useProject } from '../hooks/useProject';
-import { Sparkles, Database, Share2, Info, ArrowRight, Loader2, Copy, Table, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
+import { Sparkles, Database, Share2, Info, ArrowRight, Loader2, Copy, Table, AlertCircle, RefreshCw, CheckCircle, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { LoadingSection } from '../components/LoadingSection';
+import { Button } from '../components/ui';
 
 interface Explanation {
     entity_type: 'database' | 'table' | 'relationship';
@@ -80,7 +81,11 @@ export function AiExplanations() {
     };
 
     if (projectLoading) {
-        return null;
+        return (
+            <div className="flex h-[70vh] items-center justify-center">
+                <LoadingSection title="Initializing Engine..." subtitle="Connecting to the Vizora AI architecture analyzer." />
+            </div>
+        );
     }
 
     const steps = ['schema', 'diagram', 'explanation', 'docs'];
@@ -113,13 +118,13 @@ export function AiExplanations() {
                 </div>
 
                 {explanations.length > 0 && (
-                    <button
+                    <Button
                         onClick={() => navigate('/auto-docs')}
-                        className="flex items-center gap-3 rounded-2xl bg-gray-900 px-8 py-4 text-xs font-black text-white hover:bg-black shadow-xl shadow-gray-900/20 transition-all active:scale-95"
+                        className="px-8 py-4 text-xs font-black uppercase tracking-widest"
                     >
                         Finalize Documentation
                         <ArrowRight className="h-4 w-4" />
-                    </button>
+                    </Button>
                 )}
             </div>
 
@@ -153,10 +158,20 @@ export function AiExplanations() {
             ) : explanations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-[3rem] border-4 border-dashed border-indigo-50 bg-white p-20 text-center shadow-2xl shadow-indigo-100/20">
                     {generating ? (
-                        <LoadingSection
-                            title="Engine Analyzing Architecture..."
-                            subtitle="Interpreting tables, columns, and latent relationships."
-                        />
+                        <div className="space-y-8 flex flex-col items-center w-full">
+                            <LoadingSection
+                                title="Engine Analyzing Architecture..."
+                                subtitle="Interpreting tables, columns, and latent relationships."
+                            />
+                            <div className="animate-in fade-in duration-1000 delay-500">
+                                <div className="flex items-center gap-2 text-indigo-400 font-black text-[10px] uppercase tracking-[0.2em]">
+                                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                    <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                    <div className="w-1.5 h-1.5 bg-pink-500 rounded-full animate-bounce" />
+                                    AI is Thinking
+                                </div>
+                            </div>
+                        </div>
                     ) : (
                         <>
                             <div className="h-24 w-24 bg-indigo-50 rounded-full flex items-center justify-center mb-8">
@@ -166,13 +181,14 @@ export function AiExplanations() {
                             <p className="mt-4 text-gray-500 max-w-sm font-medium leading-relaxed">
                                 Our internal AI services need to scan your schema to generate architectural insights.
                             </p>
-                            <button
+                            <Button
                                 onClick={handleGenerate}
-                                className="mt-10 flex items-center gap-3 rounded-[2rem] bg-indigo-600 px-12 py-5 text-sm font-black text-white hover:bg-indigo-700 shadow-2xl shadow-indigo-600/30 transition-all active:scale-95"
+                                loading={generating}
+                                className="mt-10 px-12 py-5 text-sm font-black uppercase tracking-widest"
                             >
                                 <Sparkles className="h-5 w-5" />
                                 Run Multi-Vector Analysis
-                            </button>
+                            </Button>
                         </>
                     )}
                 </div>
@@ -275,14 +291,15 @@ export function AiExplanations() {
                     </div>
 
                     <div className="flex justify-center pt-10">
-                        <button
+                        <Button
+                            variant="ghost"
                             onClick={handleGenerate}
-                            disabled={generating}
-                            className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 font-black text-[10px] uppercase tracking-widest transition-colors"
+                            loading={generating}
+                            className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-indigo-600"
                         >
-                            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                            <Zap className="h-3.5 w-3.5" />
                             Recalibrate AI Explanations
-                        </button>
+                        </Button>
                     </div>
                 </div>
             )}

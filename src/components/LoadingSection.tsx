@@ -49,8 +49,8 @@ export function LoadingSection({
                 {/* Rotating Rings */}
                 <div className="relative h-24 w-24">
                     <div className="absolute inset-0 rounded-full border-4 border-indigo-50" />
-                    <div className="absolute inset-0 h-24 w-24 animate-[spin_2s_linear_infinite] rounded-full border-4 border-indigo-600 border-t-transparent shadow-[0_0_15px_rgba(79,70,229,0.2)]" />
-                    <div className="absolute inset-2 h-20 w-20 animate-[spin_1.5s_linear_infinite_reverse] rounded-full border-4 border-purple-400 border-b-transparent opacity-50 shadow-[0_0_10px_rgba(192,132,252,0.1)]" />
+                    <div className="absolute inset-0 h-24 w-24 animate-spin-slow rounded-full border-4 border-indigo-600 border-t-transparent shadow-[0_0_15px_rgba(79,70,229,0.2)]" />
+                    <div className="absolute inset-2 h-20 w-20 animate-spin-reverse rounded-full border-4 border-purple-400 border-b-transparent opacity-50 shadow-[0_0_10px_rgba(192,132,252,0.1)]" />
 
                     {/* Floating Icons */}
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
@@ -91,7 +91,7 @@ export function LoadingSection({
 
                 {/* Interactive Progress Bar instead of just dots */}
                 <div className="w-48 h-1.5 bg-slate-100 rounded-full mx-auto overflow-hidden relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 w-full animate-[shimmer_2s_infinite] -translate-x-full" />
+                    <div className="absolute inset-x-0 top-0 bottom-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 w-full animate-shimmer" />
                 </div>
 
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">

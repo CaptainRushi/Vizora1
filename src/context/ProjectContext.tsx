@@ -6,6 +6,8 @@ import { useLocation, matchPath } from 'react-router-dom';
 interface Project {
     id: string;
     name: string;
+    description: string | null;
+    status: 'active' | 'archived';
     schema_type: string;
     current_step: string;
     created_at: string;

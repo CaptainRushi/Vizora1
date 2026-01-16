@@ -9,7 +9,17 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    @apply text-slate-900;
+    @apply text-slate-900 bg-white;
+  }
+
+  .dark body {
+    @apply text-slate-100 bg-slate-950;
+  }
+
+  .dark h1,
+  .dark h2,
+  .dark h3 {
+    @apply text-white;
   }
 
   .vizora-brand {
@@ -76,38 +86,25 @@
   }
 }
 
-@keyframes mesh {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
-}
+/* mesh keyframe moved to tailwind.config.js */
 
 .animate-mesh {
   background-size: 200% 200%;
   animation: mesh 10s ease infinite;
 }
 
-@keyframes float {
-  0% {
-    transform: translateY(0px);
-  }
+/* float keyframe moved to tailwind.config.js */
 
-  50% {
-    transform: translateY(-15px);
-  }
-
-  100% {
-    transform: translateY(0px);
-  }
-}
+/* .reduce-motion *,
+.reduce-motion *:before,
+.reduce-motion *:after {
+  animation-delay: -1ms !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  background-attachment: scroll !important;
+  transition-delay: 0s !important;
+  transition-duration: 0s !important;
+} */
 
 .animate-float {
   animation: float 6s ease-in-out infinite;

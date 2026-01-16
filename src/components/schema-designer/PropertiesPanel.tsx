@@ -96,8 +96,7 @@ export function PropertiesPanel({
                         <div className="flex gap-2">
                             <button
                                 onClick={() => {
-                                    // Mock AI suggestion
-                                    alert("AI Suggestion: For a table named '" + selectedNodeId + "', you might want to add 'created_at' (timestamp), 'updated_at' (timestamp), and 'status' (varchar).");
+                                    alert("AI field suggestion coming soon.");
                                 }}
                                 className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black shadow-lg shadow-slate-200 transition-all active:scale-95 group"
                                 title="AI Suggest Fields"

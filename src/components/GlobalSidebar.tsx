@@ -46,7 +46,7 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
     };
 
     return (
-        <aside className={`sidebar-fixed left-0 z-50 w-[72px] hover:w-[240px] flex flex-col bg-white border-r border-gray-200 transition-all duration-300 ease-in-out group ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <aside className={`sidebar-fixed left-0 z-50 w-[72px] hover:w-[240px] flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 transition-all duration-300 ease-in-out group ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
             {/* Top Brand Section */}
             <div className="h-16 flex items-center shrink-0 border-b border-transparent px-3 overflow-hidden">
                 <button
@@ -54,7 +54,7 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                     className="flex items-center gap-3 min-w-0 hover:bg-gray-50 p-1 rounded-xl transition-colors w-full"
                 >
                     <Logo size={32} animated={true} withBackground={true} />
-                    <span className="vizora-brand font-bold text-base text-gray-900 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    <span className="vizora-brand font-bold text-base text-gray-900 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
                         Vizora
                     </span>
                 </button>
@@ -70,7 +70,7 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                             onClick={() => navigate(item.path)}
                             className={`
                                 relative flex items-center h-10 px-2 rounded-lg transition-all duration-200 group/item
-                                ${active ? 'bg-indigo-50/50' : 'hover:bg-gray-50'}
+                                ${active ? 'bg-indigo-50/50 dark:bg-indigo-900/30' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}
                             `}
                         >
                             {active && (
@@ -78,13 +78,13 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                             )}
 
                             <item.icon
-                                className={`h-5 w-5 shrink-0 transition-colors ${active ? 'text-indigo-600' : 'text-gray-500 group-hover/item:text-gray-900'}`}
+                                className={`h-5 w-5 shrink-0 transition-colors ${active ? 'text-indigo-600' : 'text-gray-500 dark:text-slate-400 group-hover/item:text-gray-900 dark:group-hover/item:text-white'}`}
                                 strokeWidth={2}
                             />
 
                             <span className={`
                                 ml-4 text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                                ${active ? 'text-indigo-900' : 'text-gray-600'}
+                                ${active ? 'text-indigo-900 dark:text-indigo-400' : 'text-gray-600 dark:text-slate-300'}
                             `}>
                                 {item.label}
                             </span>
@@ -132,7 +132,7 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
             </nav>
 
             {/* Bottom Actions */}
-            <div className="p-3 flex flex-col gap-2 mt-auto border-t border-gray-50">
+            <div className="p-3 flex flex-col gap-2 mt-auto border-t border-gray-50 dark:border-slate-800">
                 <button
                     onClick={() => setShowFeedback(true)}
                     className="flex items-center h-10 px-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all group/feedback"
@@ -175,8 +175,8 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                             </div>
                         </div>
                         <div className="ml-3 text-left opacity-0 group-hover:opacity-100 transition-opacity overflow-hidden whitespace-nowrap">
-                            <p className="text-xs font-bold text-gray-900">{user?.user_metadata?.full_name || 'User'}</p>
-                            <p className="text-[10px] text-gray-500 truncate lowercase">{user?.email}</p>
+                            <p className="text-xs font-bold text-gray-900 dark:text-white">{user?.user_metadata?.full_name || 'User'}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate lowercase">{user?.email}</p>
                         </div>
                     </button>
 

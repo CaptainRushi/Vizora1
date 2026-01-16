@@ -4,6 +4,8 @@ import axios from 'axios';
 const rawBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 const API_BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
+axios.defaults.timeout = 10000; // 10s timeout to prevent stuck loaders
+
 // Export for direct usage
 export const BACKEND_URL = API_BASE_URL;
 
@@ -159,6 +161,109 @@ export const api = {
             workspaceId?: string;
         }) => {
             const res = await axios.patch(`${API_BASE_URL}/api/dashboard/profile`, data);
+            return res.data;
+        }
+    },
+
+    // Platform Settings APIs
+    settings: {
+        // Get all settings at once
+        getAll: async (userId: string, workspaceId?: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/settings/all`, {
+                params: { userId, workspaceId }
+            });
+            return res.data;
+        },
+        // User appearance settings
+        getAppearance: async (userId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/settings/user/${userId}`);
+            return res.data;
+        },
+        updateAppearance: async (userId: string, data: { color_mode?: string; diagram_theme?: string }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/settings/user/${userId}`, data);
+            return res.data;
+        },
+        // User interaction settings
+        getInteraction: async (userId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/settings/interaction/${userId}`);
+            return res.data;
+        },
+        updateInteraction: async (userId: string, data: { reduced_motion?: boolean; auto_focus_schema?: boolean }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/settings/interaction/${userId}`, data);
+            return res.data;
+        },
+        // Workspace intelligence settings
+        getIntelligence: async (workspaceId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/settings/intelligence/${workspaceId}`);
+            return res.data;
+        },
+        updateIntelligence: async (workspaceId: string, data: {
+            explanation_mode?: string;
+            evidence_strict?: boolean;
+            auto_schema_review?: boolean;
+            auto_onboarding?: boolean;
+        }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/settings/intelligence/${workspaceId}`, data);
+            return res.data;
+        },
+        // User notification settings
+        getNotifications: async (userId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/settings/notifications/${userId}`);
+            return res.data;
+        },
+        updateNotifications: async (userId: string, data: {
+            email_schema_changes?: boolean;
+            email_team_activity?: boolean;
+            email_ai_summary?: boolean;
+            inapp_schema?: boolean;
+            inapp_team?: boolean;
+        }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/settings/notifications/${userId}`, data);
+            return res.data;
+        },
+        // Workspace privacy settings
+        getPrivacy: async (workspaceId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/settings/privacy/${workspaceId}`);
+            return res.data;
+        },
+        updatePrivacy: async (workspaceId: string, data: { retain_all_versions?: boolean }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/settings/privacy/${workspaceId}`, data);
+            return res.data;
+        }
+    },
+    // Project-Specific Settings APIs
+    projectSettings: {
+        getAll: async (projectId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/project-settings/${projectId}`);
+            return res.data;
+        },
+        updateGeneral: async (projectId: string, data: { name?: string; description?: string; status?: string }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/project-settings/${projectId}/general`, data);
+            return res.data;
+        },
+        updateSchema: async (projectId: string, data: { input_mode?: string; auto_version?: boolean; version_naming?: string }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/project-settings/${projectId}/schema`, data);
+            return res.data;
+        },
+        updateIntelligence: async (projectId: string, data: {
+            explanation_depth?: string;
+            evidence_strict?: boolean;
+            auto_review?: boolean;
+            auto_onboarding?: boolean;
+        }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/project-settings/${projectId}/intelligence`, data);
+            return res.data;
+        },
+        addMember: async (projectId: string, userId: string, role: string) => {
+            const res = await axios.post(`${API_BASE_URL}/api/project-settings/${projectId}/members`, { user_id: userId, role });
+            return res.data;
+        },
+        removeMember: async (projectId: string, userId: string) => {
+            const res = await axios.delete(`${API_BASE_URL}/api/project-settings/${projectId}/members/${userId}`);
+            return res.data;
+        },
+        deleteProject: async (projectId: string) => {
+            const res = await axios.delete(`${API_BASE_URL}/api/project-settings/${projectId}`);
             return res.data;
         }
     }

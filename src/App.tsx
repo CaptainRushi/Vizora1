@@ -7,6 +7,7 @@ import { supabase } from './lib/supabase';
 import { BetaWatermark } from './components/BetaWatermark';
 import { ProjectProvider } from './context/ProjectContext';
 import { LoadingSection } from './components/LoadingSection';
+import { TabTransitionLoader } from './components/TabTransitionLoader';
 
 // Lazy load pages for code splitting
 const ERDiagrams = lazy(() => import('./pages/ERDiagrams').then(m => ({ default: m.ERDiagrams })));
@@ -15,7 +16,6 @@ const AiExplanations = lazy(() => import('./pages/AiExplanations').then(m => ({ 
 const AutoDocs = lazy(() => import('./pages/AutoDocs').then(m => ({ default: m.AutoDocs })));
 const VersionHistory = lazy(() => import('./pages/VersionHistory').then(m => ({ default: m.VersionHistory })));
 const ChangeTracking = lazy(() => import('./pages/ChangeTracking').then(m => ({ default: m.ChangeTracking })));
-const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const Projects = lazy(() => import('./pages/Projects').then(m => ({ default: m.Projects })));
 const SchemaDesigner = lazy(() => import('./pages/SchemaDesigner').then(m => ({ default: m.SchemaDesigner })));
 const GlobalSettings = lazy(() => import('./pages/GlobalPages').then(m => ({ default: m.GlobalSettings })));
@@ -28,6 +28,7 @@ const OnboardingForm = lazy(() => import('./pages/OnboardingForm').then(m => ({ 
 const TeamMembers = lazy(() => import('./pages/TeamMembers').then(m => ({ default: m.TeamMembers })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(m => ({ default: m.InviteAccept })));
 const JoinTeam = lazy(() => import('./pages/JoinTeam').then(m => ({ default: m.JoinTeam })));
+const ProjectSettings = lazy(() => import('./pages/ProjectSettings').then(m => ({ default: m.ProjectSettings })));
 const Help = lazy(() => import('./pages/Help').then(m => ({ default: m.Help })));
 const SignInPage = lazy(() => import('./pages/auth/SignInPage').then(m => ({ default: m.SignInPage })));
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
@@ -157,6 +158,7 @@ function App() {
     return (
         <Router>
             <BetaWatermark />
+            <TabTransitionLoader />
             <Suspense fallback={<PageLoader />}>
                 <Routes>
                     {/* Public Landing Page - Accessible to everyone */}
@@ -195,7 +197,7 @@ function App() {
                                         <Route path="docs" element={<AutoDocs />} />
                                         <Route path="versions" element={<VersionHistory />} />
                                         <Route path="changes" element={<ChangeTracking />} />
-                                        <Route path="settings" element={<Settings />} />
+                                        <Route path="settings" element={<ProjectSettings />} />
                                         <Route path="comments" element={<Comments />} />
 
                                         {/* Intelligence Section */}

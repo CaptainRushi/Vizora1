@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { AboutBetaModal } from '../components/beta/AboutBetaModal';
 import { FeedbackNudge } from '../components/beta/FeedbackNudge';
 import { api } from '../lib/api';
+import { LoadingSection } from '../components/LoadingSection';
 
 interface Project {
     id: string;
@@ -252,8 +253,8 @@ export function Projects() {
                     </div>
 
                     {loading ? (
-                        <div className="flex h-64 items-center justify-center rounded-3xl border-2 border-dashed border-gray-100 bg-gray-50/50">
-                            <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+                        <div className="flex flex-col items-center justify-center py-16 rounded-3xl border-2 border-dashed border-indigo-100 bg-indigo-50/20">
+                            <LoadingSection title="Loading Projects..." subtitle="Retrieving your latest architectural workspaces." />
                         </div>
                     ) : (
                         <div className="grid gap-6 md:grid-cols-2">
