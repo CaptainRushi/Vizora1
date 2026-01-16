@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useProject } from '../../hooks/useProject';
 import { api } from '../../lib/api';
-import { BookOpen, RefreshCw, Copy, Check, Download, Brain, AlertCircle } from 'lucide-react';
+import { BookOpen, Copy, Check, Download, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import PasteSchemaEmptyState from '../../components/dashboard/PasteSchemaEmptyState';
+import { LoadingSection } from '../../components/LoadingSection';
 
 export default function OnboardingGuide() {
     const { projectId } = useProject();
     const [loading, setLoading] = useState(true);
     const [content, setContent] = useState<string | null>(null);
+    const [isEmpty, setIsEmpty] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
 
@@ -15,9 +18,14 @@ export default function OnboardingGuide() {
         if (!projectId) return;
         setLoading(true);
         setError(null);
+        setIsEmpty(false);
         try {
             const data = await api.getOnboardingGuide(projectId, force);
-            setContent(data.content);
+            if (data.state === 'empty') {
+                setIsEmpty(true);
+            } else {
+                setContent(data.content);
+            }
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -38,15 +46,15 @@ export default function OnboardingGuide() {
 
     if (loading) {
         return (
-            <div className="p-8 flex flex-col items-center justify-center min-h-[60vh]">
-                <div className="relative mb-6">
-                    <Brain className="h-12 w-12 text-indigo-500 animate-pulse" />
-                    <RefreshCw className="h-5 w-5 text-indigo-600 absolute -bottom-1 -right-1 animate-spin" />
-                </div>
-                <h2 className="text-xl font-black text-slate-900 mb-2 whitespace-nowrap">Brainstorming Guide...</h2>
-                <p className="text-slate-500 font-medium">Synthesizing schema relationships and architecture patterns.</p>
-            </div>
+            <LoadingSection
+                title="Synthesizing Knowledge Base..."
+                subtitle="Generating architectural walkthroughs and pattern explanations for your team."
+            />
         );
+    }
+
+    if (isEmpty) {
+        return <PasteSchemaEmptyState feature="onboarding" />;
     }
 
     if (error) {

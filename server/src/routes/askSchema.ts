@@ -425,32 +425,9 @@ router.post('/ask', async (req, res) => {
             schema = result.schema;
             version = result.version;
         } catch (err) {
-            // Return proper deep reply format even for errors
-            return res.status(400).json({
-                question_interpretation: {
-                    intent: 'general_query',
-                    target_entities: [],
-                    operation_type: 'unknown',
-                    why_this_interpretation: 'Cannot process - no schema available'
-                },
-                answer: "I couldn't find a schema for this project. Please go to the 'Schema Input' page and save your schema first.",
-                schema_evidence: {
-                    schema_version: 0,
-                    tables_involved: [],
-                    columns_involved: [],
-                    relationships_used: []
-                },
-                impact_and_risk: {
-                    risk_level: 'none',
-                    impact_scope: [],
-                    why_this_risk_level: 'No schema to analyze'
-                },
-                reasoning_trace: ['Attempted to load schema', 'Schema not found for project'],
-                confidence_and_limits: {
-                    confidence: 'low',
-                    what_is_known: [],
-                    what_is_not_known: ['Schema is not available']
-                }
+            return res.json({
+                state: "empty",
+                reason: "no_schema"
             });
         }
 

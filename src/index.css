@@ -54,26 +54,7 @@
     @apply mb-[24px];
   }
 
-  /* PRICING BASELINE GRID */
-  .pricing-grid {
-    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch;
-  }
 
-  .pricing-card {
-    @apply flex flex-col p-8 bg-white border border-slate-200 rounded-3xl h-full transition-all;
-  }
-
-  .pricing-card-header {
-    @apply mb-6;
-  }
-
-  .pricing-card-features {
-    @apply flex-grow space-y-4 mb-8;
-  }
-
-  .pricing-card-footer {
-    @apply mt-auto pt-6;
-  }
 }
 
 @layer utilities {
@@ -93,6 +74,25 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #d1d5db;
   }
+}
+
+@keyframes mesh {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-mesh {
+  background-size: 200% 200%;
+  animation: mesh 10s ease infinite;
 }
 
 @keyframes float {

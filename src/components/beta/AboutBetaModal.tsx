@@ -94,7 +94,7 @@ export function AboutBetaModal({ onClose, limitReached, type, onGetNotified }: A
                                 <p className="text-xs text-gray-400 font-bold uppercase tracking-widest text-center">What happens after beta?</p>
                                 <div className="p-5 rounded-2xl bg-indigo-50 border border-indigo-100 text-center">
                                     <p className="text-sm text-indigo-700 font-bold leading-relaxed">
-                                        You'll be able to unlock a full plan and keep all your data. No data will be lost when the beta period ends.
+                                        You'll be able to keep all your data as we approach our official launch. No data will be lost when the beta period ends.
                                     </p>
                                 </div>
                             </div>

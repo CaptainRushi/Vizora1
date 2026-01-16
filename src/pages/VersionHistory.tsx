@@ -4,6 +4,7 @@ import { useProject } from '../hooks/useProject';
 import { History, Calendar, ChevronRight, X, Copy, Check, Terminal } from 'lucide-react';
 import { generateSql, type NormalizedSchema } from '../lib/generators';
 import { useOptimizedFetch } from '../hooks/useOptimizedFetch';
+import { LoadingSection } from '../components/LoadingSection';
 
 interface Version {
     version: number;
@@ -138,6 +139,11 @@ export function VersionHistory() {
                                 <History className="h-10 w-10 text-gray-200" />
                             </div>
                             <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No variations found</p>
+                        </div>
+                    )}
+                    {loading && (
+                        <div className="p-20">
+                            <LoadingSection variant="inline" title="History Syncing..." subtitle="Retrieving immutable records." />
                         </div>
                     )}
                 </ul>

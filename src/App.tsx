@@ -6,6 +6,7 @@ import { useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabase';
 import { BetaWatermark } from './components/BetaWatermark';
 import { ProjectProvider } from './context/ProjectContext';
+import { LoadingSection } from './components/LoadingSection';
 
 // Lazy load pages for code splitting
 const ERDiagrams = lazy(() => import('./pages/ERDiagrams').then(m => ({ default: m.ERDiagrams })));
@@ -17,7 +18,6 @@ const ChangeTracking = lazy(() => import('./pages/ChangeTracking').then(m => ({ 
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const Projects = lazy(() => import('./pages/Projects').then(m => ({ default: m.Projects })));
 const SchemaDesigner = lazy(() => import('./pages/SchemaDesigner').then(m => ({ default: m.SchemaDesigner })));
-const Billing = lazy(() => import('./pages/Billing').then(m => ({ default: m.Billing })));
 const GlobalSettings = lazy(() => import('./pages/GlobalPages').then(m => ({ default: m.GlobalSettings })));
 const Overview = lazy(() => import('./pages/Overview').then(m => ({ default: m.Overview })));
 const SchemaExplorer = lazy(() => import('./pages/SchemaExplorer').then(m => ({ default: m.SchemaExplorer })));
@@ -40,11 +40,8 @@ const AskSchema = lazy(() => import('./pages/Intelligence/AskSchema'));
 // Loading component
 function PageLoader() {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-            <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                <p className="text-sm text-gray-500 font-medium">Loading...</p>
-            </div>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <LoadingSection title="Vizora is thinking..." subtitle="Preparing a premium intelligence experience for you." />
         </div>
     );
 }
@@ -67,7 +64,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (loading || isInternalLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <LoadingSection title="Authenticating..." subtitle="Securing your schema data." variant="inline" />
             </div>
         );
     }
@@ -223,7 +220,7 @@ function App() {
                                     <Route path="/projects" element={<Projects />} />
                                     <Route path="/account" element={<UserDashboard />} />
                                     <Route path="/designer" element={<SchemaDesigner />} />
-                                    <Route path="/billing" element={<Billing />} />
+                                    <Route path="/billing" element={<Navigate to="/projects" replace />} />
                                     <Route path="/settings" element={<GlobalSettings />} />
                                     <Route path="/help" element={<Help />} />
                                     <Route path="*" element={<Navigate to="/projects" replace />} />

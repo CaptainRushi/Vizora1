@@ -4,6 +4,7 @@ import { useProject } from '../hooks/useProject';
 import { Sparkles, Database, Share2, Info, ArrowRight, Loader2, Copy, Table, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { LoadingSection } from '../components/LoadingSection';
 
 interface Explanation {
     entity_type: 'database' | 'table' | 'relationship';
@@ -151,21 +152,29 @@ export function AiExplanations() {
                 </div>
             ) : explanations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-[3rem] border-4 border-dashed border-indigo-50 bg-white p-20 text-center shadow-2xl shadow-indigo-100/20">
-                    <div className="h-24 w-24 bg-indigo-50 rounded-full flex items-center justify-center mb-8">
-                        <Sparkles className="h-12 w-12 text-indigo-400" />
-                    </div>
-                    <h3 className="text-2xl font-black text-gray-900">Analysis Pending</h3>
-                    <p className="mt-4 text-gray-500 max-w-sm font-medium leading-relaxed">
-                        Our internal AI services need to scan your schema to generate architectural insights.
-                    </p>
-                    <button
-                        onClick={handleGenerate}
-                        disabled={generating}
-                        className="mt-10 flex items-center gap-3 rounded-[2rem] bg-indigo-600 px-12 py-5 text-sm font-black text-white hover:bg-indigo-700 shadow-2xl shadow-indigo-600/30 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                        {generating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-                        Run Multi-Vector Analysis
-                    </button>
+                    {generating ? (
+                        <LoadingSection
+                            title="Engine Analyzing Architecture..."
+                            subtitle="Interpreting tables, columns, and latent relationships."
+                        />
+                    ) : (
+                        <>
+                            <div className="h-24 w-24 bg-indigo-50 rounded-full flex items-center justify-center mb-8">
+                                <Sparkles className="h-12 w-12 text-indigo-400" />
+                            </div>
+                            <h3 className="text-2xl font-black text-gray-900">Analysis Pending</h3>
+                            <p className="mt-4 text-gray-500 max-w-sm font-medium leading-relaxed">
+                                Our internal AI services need to scan your schema to generate architectural insights.
+                            </p>
+                            <button
+                                onClick={handleGenerate}
+                                className="mt-10 flex items-center gap-3 rounded-[2rem] bg-indigo-600 px-12 py-5 text-sm font-black text-white hover:bg-indigo-700 shadow-2xl shadow-indigo-600/30 transition-all active:scale-95"
+                            >
+                                <Sparkles className="h-5 w-5" />
+                                Run Multi-Vector Analysis
+                            </button>
+                        </>
+                    )}
                 </div>
             ) : (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">

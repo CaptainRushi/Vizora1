@@ -2,12 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { CheckCircle2, User, Building2, Users, CreditCard, ArrowRight, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, User, Building2, Users, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react';
 
 type WorkspaceType = 'personal' | 'team';
 type UsageType = 'solo' | 'team';
 type TeamSize = '2-5' | '6-10' | '10+';
-type PlanIntent = 'free' | 'pro' | 'team';
 
 interface OnboardingData {
     // Step 1: Identity
@@ -21,19 +20,11 @@ interface OnboardingData {
     // Step 3: Usage Type
     usageType: UsageType;
     teamSize?: TeamSize;
-
-    // Step 4: Billing
-    country: string;
-    billingCurrency: string;
-    billingEmail: string;
-    planIntent: PlanIntent;
 }
 
 export function OnboardingForm() {
     const { user } = useAuth();
     const navigate = useNavigate();
-
-
 
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,13 +37,9 @@ export function OnboardingForm() {
         workspaceType: 'personal',
         usageType: 'solo',
         teamSize: undefined,
-        country: 'US',
-        billingCurrency: 'USD',
-        billingEmail: user?.email || '',
-        planIntent: 'free',
     });
 
-    const totalSteps = 4;
+    const totalSteps = 3;
 
     const updateField = (field: keyof OnboardingData, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -79,12 +66,6 @@ export function OnboardingForm() {
                     return false;
                 }
                 return true;
-            case 4:
-                if (!formData.country || !formData.billingEmail) {
-                    setError('Country and billing email are required');
-                    return false;
-                }
-                return true;
             default:
                 return true;
         }
@@ -105,6 +86,7 @@ export function OnboardingForm() {
 
     const handleSubmit = async () => {
         if (!validateStep(currentStep)) return;
+        setIsSubmitting(true);
 
         if (!user || !user.id) {
             setError('User session not found. Please sign in again.');
@@ -155,7 +137,7 @@ export function OnboardingForm() {
             setIsSuccess(true);
             setTimeout(() => {
                 navigate('/account', { replace: true });
-            }, 10000);
+            }, 3000);
 
         } catch (err: any) {
             console.error('Onboarding error:', err);
@@ -230,18 +212,18 @@ export function OnboardingForm() {
                                 <Building2 className="w-8 h-8 text-indigo-600" />
                             </div>
                             <h2 className="text-2xl font-black text-gray-900 mb-2">Workspace Setup</h2>
-                            <p className="text-sm text-gray-500">Workspace is how projects and billing are grouped</p>
+                            <p className="text-sm text-gray-500">A workspace is where your projects live</p>
                         </div>
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">
-                                Workspace / Company Name <span className="text-red-500">*</span>
+                                Workspace Name <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="text"
                                 value={formData.workspaceName}
                                 onChange={(e) => updateField('workspaceName', e.target.value)}
-                                placeholder="My Company"
+                                placeholder="My Project Area"
                                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                             />
                         </div>
@@ -331,7 +313,7 @@ export function OnboardingForm() {
                                     </div>
                                     <div>
                                         <p className="font-bold text-gray-900">Solo Developer</p>
-                                        <p className="text-xs text-gray-500 mt-1">I work alone • One seat</p>
+                                        <p className="text-xs text-gray-500 mt-1">I work alone</p>
                                     </div>
                                 </div>
                             </button>
@@ -381,88 +363,13 @@ export function OnboardingForm() {
                                 </div>
                             </div>
                         )}
-                    </div>
-                );
 
-            case 4:
-                return (
-                    <div className="space-y-6">
-                        <div className="text-center mb-8">
-                            <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <CreditCard className="w-8 h-8 text-indigo-600" />
-                            </div>
-                            <h2 className="text-2xl font-black text-gray-900 mb-2">Billing Setup</h2>
-                            <p className="text-sm text-gray-500">No payment required now</p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                                Country <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                value={formData.country}
-                                onChange={(e) => updateField('country', e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                            >
-                                <option value="US">United States</option>
-                                <option value="GB">United Kingdom</option>
-                                <option value="CA">Canada</option>
-                                <option value="AU">Australia</option>
-                                <option value="IN">India</option>
-                                <option value="DE">Germany</option>
-                                <option value="FR">France</option>
-                                <option value="OTHER">Other</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                                Billing Currency
-                            </label>
-                            <select
-                                value={formData.billingCurrency}
-                                onChange={(e) => updateField('billingCurrency', e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                            >
-                                <option value="USD">USD ($)</option>
-                                <option value="EUR">EUR (€)</option>
-                                <option value="GBP">GBP (£)</option>
-                                <option value="INR">INR (₹)</option>
-                                <option value="AUD">AUD (A$)</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                                Billing Email
-                            </label>
-                            <input
-                                type="email"
-                                value={formData.billingEmail}
-                                onChange={(e) => updateField('billingEmail', e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-3">
-                                Plan Intent <span className="text-gray-400 text-xs">(optional)</span>
-                            </label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {(['free', 'pro', 'team'] as PlanIntent[]).map((plan) => (
-                                    <button
-                                        key={plan}
-                                        type="button"
-                                        onClick={() => updateField('planIntent', plan)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all ${formData.planIntent === plan
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300'
-                                            }`}
-                                    >
-                                        {plan}
-                                    </button>
-                                ))}
-                            </div>
+                        <div className="mt-8 p-6 bg-indigo-900 rounded-2xl text-white relative overflow-hidden">
+                            <Sparkles className="absolute -right-4 -top-4 w-16 h-16 text-white/10" />
+                            <p className="text-xs font-bold uppercase tracking-widest mb-2 opacity-60">Private Beta Note</p>
+                            <p className="text-sm font-medium leading-relaxed">
+                                Vizora is free for all early access users during the private beta period.
+                            </p>
                         </div>
                     </div>
                 );
@@ -480,7 +387,7 @@ export function OnboardingForm() {
                 </div>
 
                 <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-4 animate-in slide-in-from-bottom-4 duration-1000">
-                    Welcome to the beta version of Vizora
+                    Welcome to the Private Beta
                 </h1>
                 <p className="text-slate-500 font-medium max-w-sm animate-in fade-in slide-in-from-bottom-2 duration-1000 delay-300">
                     Your workspace is ready. Redirecting you to your dashboard...
@@ -488,7 +395,7 @@ export function OnboardingForm() {
 
                 <div className="mt-12 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
                     <div className="w-4 h-4 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
-                    Preparing your workspace
+                    Preparing your environment
                 </div>
             </div>
         );
@@ -561,7 +468,7 @@ export function OnboardingForm() {
                                 ) : (
                                     <>
                                         <CheckCircle2 className="w-4 h-4" />
-                                        Start Exploring
+                                        Complete Onboarding
                                     </>
                                 )}
                             </button>
@@ -571,7 +478,7 @@ export function OnboardingForm() {
 
                 {/* Footer */}
                 <p className="mt-8 text-center text-xs text-gray-400 font-medium">
-                    &copy; 2026 Vizora. All rights reserved. Beta Access.
+                    &copy; 2026 Vizora. Private Beta Access.
                 </p>
             </div>
         </div>

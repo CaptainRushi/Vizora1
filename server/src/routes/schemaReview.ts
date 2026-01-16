@@ -11,13 +11,16 @@ router.post('/review', async (req, res) => {
             return res.status(400).json({ error: 'project_id is required' });
         }
 
-        let schema, version;
+        let schema: any, version: number;
         try {
             const result = await getLatestNormalizedSchema(project_id);
             schema = result.schema;
             version = result.version;
         } catch (err) {
-            return res.json([]); // Return empty findings if no schema found
+            return res.json({
+                state: "empty",
+                reason: "no_schema"
+            });
         }
         const findings = analyzeSchema(schema);
 

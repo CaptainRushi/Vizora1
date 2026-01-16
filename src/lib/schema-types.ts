@@ -12,6 +12,8 @@ export interface UnifiedRelation {
     type: 'many_to_one' | 'one_to_many' | 'one_to_one' | 'many_to_many';
     from: string;
     to: string;
+    on_delete?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION';
+    on_update?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION';
 }
 
 export interface UnifiedTable {

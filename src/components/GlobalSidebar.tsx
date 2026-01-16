@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Folder, PenTool, CreditCard, Settings, HelpCircle, LogOut, Github, Chrome, MessageSquarePlus, ShieldCheck, BookOpen, Brain } from 'lucide-react';
+import { Folder, PenTool, Settings, HelpCircle, LogOut, Github, Chrome, MessageSquarePlus, ShieldCheck, BookOpen, Brain } from 'lucide-react';
 import { Logo } from './VizoraLogo';
 import { useAuth } from '../context/AuthContext';
 import { FeedbackPrompt } from './beta/FeedbackPrompt';
@@ -18,7 +18,6 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
     const navItems = [
         { icon: Folder, label: 'Projects', path: '/projects' },
         { icon: PenTool, label: 'Designer', path: '/designer' },
-        { icon: CreditCard, label: 'Billing', path: '/billing' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
 

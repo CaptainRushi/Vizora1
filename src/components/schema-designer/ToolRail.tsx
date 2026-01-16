@@ -10,6 +10,7 @@ import {
     Trash2,
     Grid,
     Magnet,
+    Wand2
 } from 'lucide-react';
 
 export type CanvasTool = 'select' | 'pan' | 'add_table' | 'add_column' | 'add_relation';
@@ -73,6 +74,7 @@ export function ToolRail({
                 <ToolButton mode="select" icon={MousePointer} label="Select" />
                 <ToolButton mode="pan" icon={Hand} label="Pan Tool (Space)" />
                 <ToolButton action="fit-view" icon={Maximize} label="Zoom to Fit" />
+                <ToolButton action="auto-layout" icon={Wand2} label="Auto-layout" />
             </div>
 
             <div className="w-px h-6 bg-slate-200" />

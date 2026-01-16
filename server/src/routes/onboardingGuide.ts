@@ -28,15 +28,15 @@ router.post('/onboarding-guide', async (req, res) => {
             return res.status(400).json({ error: 'project_id is required' });
         }
 
-        let schema, version;
+        let schema: any, version: number;
         try {
             const result = await getLatestNormalizedSchema(project_id);
             schema = result.schema;
             version = result.version;
         } catch (err) {
-            return res.status(400).json({
-                error: 'No schema found',
-                content: "## No Schema Detected\n\nI couldn't find a schema for this project. Please upload a schema first to generate an onboarding guide."
+            return res.json({
+                state: "empty",
+                reason: "no_schema"
             });
         }
 

@@ -13,41 +13,64 @@ import ReactFlow, {
     useReactFlow
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Download, Sun, Moon, Maximize, Eye, EyeOff, Share2, RefreshCw, Key } from 'lucide-react';
+import { Download, Sun, Moon, Maximize, Eye, EyeOff, Share2, RefreshCw, Key, Link as LinkIcon, Info } from 'lucide-react';
+import dagre from 'dagre';
 import { useProjectContext } from '../context/ProjectContext';
 import { MacDots } from '../components/MacDots';
+import { LoadingSection } from '../components/LoadingSection';
 import { supabase } from '../lib/supabase';
 import { FeedbackNudge } from '../components/beta/FeedbackNudge';
 
 // --- CUSTOM COMPONENTS ---
 
-const TableNode = ({ data }: NodeProps) => {
+const TableNode = ({ data, selected }: NodeProps) => {
     return (
-        <div className="bg-white border-2 border-slate-200 rounded-xl shadow-md min-w-[200px] overflow-hidden">
-            <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between">
-                <span className="font-bold text-slate-800 text-sm tracking-tight">{data.label}</span>
+        <div className={`bg-white border-2 ${selected ? 'border-indigo-500 ring-4 ring-indigo-50' : 'border-slate-200'} rounded-xl shadow-lg min-w-[220px] overflow-hidden transition-all duration-200`}>
+            {/* Header */}
+            <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                    <span className="font-black text-slate-800 text-xs uppercase tracking-tight">{data.label}</span>
+                </div>
+                {data.isHovered && <Info className="h-3 w-3 text-indigo-400 animate-pulse" />}
             </div>
+
+            {/* Columns */}
             <div className="py-2">
                 {Object.entries(data.columns as any || {}).map(([name, col]: [string, any]) => (
-                    <div key={name} className="relative flex items-center justify-between px-4 py-1.5 text-xs">
+                    <div
+                        key={name}
+                        onMouseEnter={() => data.onColumnMouseEnter?.(name)}
+                        onMouseLeave={() => data.onColumnMouseLeave?.()}
+                        className={`relative flex items-center justify-between px-4 py-2 text-[11px] transition-colors group/row ${data.hoveredColumn === name ? 'bg-indigo-50/50' : 'hover:bg-slate-50'
+                            }`}
+                    >
                         <Handle
                             type="target"
                             position={Position.Left}
                             id={`${data.label}.${name}.target`}
-                            className="w-1.5 h-1.5 !bg-slate-300 border-white"
+                            className={`w-2 h-2 !bg-slate-300 border-2 border-white transition-transform ${data.hoveredColumn === name ? 'scale-125 !bg-indigo-500' : ''
+                                }`}
                         />
 
-                        <div className="flex items-center gap-2 min-w-0 pr-4">
-                            {col.primary && <Key className="h-3 w-3 text-amber-500 shrink-0" />}
-                            <span className={`truncate font-medium ${col.primary ? 'text-slate-900' : 'text-slate-600'}`}>{name}</span>
-                            <span className="text-[10px] text-slate-400 font-mono uppercase truncate">{col.type}</span>
+                        <div className="flex items-center gap-2 min-w-0 pr-4 flex-1">
+                            {col.primary ? (
+                                <Key className="h-3 w-3 text-amber-500 shrink-0" />
+                            ) : col.references ? (
+                                <LinkIcon className="h-3 w-3 text-indigo-400 shrink-0" />
+                            ) : (
+                                <div className="w-3" />
+                            )}
+                            <span className={`truncate font-bold ${col.primary ? 'text-slate-900' : 'text-slate-600'}`}>{name}</span>
+                            <span className="text-[9px] text-slate-400 font-mono uppercase truncate ml-auto italic opacity-60">{col.type}</span>
                         </div>
 
                         <Handle
                             type="source"
                             position={Position.Right}
                             id={`${data.label}.${name}.source`}
-                            className="w-1.5 h-1.5 !bg-indigo-400 border-white"
+                            className={`w-2 h-2 !bg-indigo-400 border-2 border-white transition-transform ${data.hoveredColumn === name ? 'scale-125 !bg-indigo-600' : ''
+                                }`}
                         />
                     </div>
                 ))}
@@ -60,6 +83,43 @@ const nodeTypes = {
     table: TableNode,
 };
 
+const dagreGraph = new dagre.graphlib.Graph();
+dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+const nodeWidth = 240;
+const nodeHeight = 300; // Average height, will be dynamic if possible
+
+const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
+    const isHorizontal = direction === 'LR';
+    dagreGraph.setGraph({ rankdir: direction, ranksep: 100, nodesep: 120 });
+
+    nodes.forEach((node) => {
+        dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+    });
+
+    edges.forEach((edge) => {
+        dagreGraph.setEdge(edge.source, edge.target);
+    });
+
+    dagre.layout(dagreGraph);
+
+    nodes.forEach((node) => {
+        const nodeWithPosition = dagreGraph.node(node.id);
+        node.targetPosition = isHorizontal ? Position.Left : Position.Top;
+        node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom;
+
+        // We are shifting the dagre node position (which is center-based) to top-left
+        node.position = {
+            x: nodeWithPosition.x - nodeWidth / 2,
+            y: nodeWithPosition.y - nodeHeight / 2,
+        };
+
+        return node;
+    });
+
+    return { nodes, edges };
+};
+
 const ERDiagramsContent = () => {
     const { projectId, billing } = useProjectContext();
     const { fitView } = useReactFlow();
@@ -68,6 +128,64 @@ const ERDiagramsContent = () => {
     const [loading, setLoading] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+
+    // Handle Column Hover
+    const onColumnMouseEnter = useCallback((tableName: string, columnName: string) => {
+        setEdges((eds) => eds.map((edge) => {
+            const isRelevant = (edge.source === tableName && edge.data?.fromCol === columnName) ||
+                (edge.target === tableName && edge.data?.toCol === columnName);
+
+            return {
+                ...edge,
+                animated: isRelevant,
+                style: {
+                    ...edge.style,
+                    stroke: isRelevant ? '#4f46e5' : '#cbd5e1',
+                    strokeWidth: isRelevant ? 4 : 1,
+                    opacity: isRelevant ? 1 : 0.05
+                }
+            };
+        }));
+
+        setNodes((nds) => nds.map((n) => {
+            if (n.id === tableName) {
+                return { ...n, data: { ...n.data, hoveredColumn: columnName } };
+            }
+            // Also highlight the target/source table's column if it's a direct link
+            const connectedEdge = edges.find(e =>
+                (e.source === tableName && e.data?.fromCol === columnName && e.target === n.id) ||
+                (e.target === tableName && e.data?.toCol === columnName && e.source === n.id)
+            );
+
+            if (connectedEdge) {
+                const targetCol = connectedEdge.source === n.id ? connectedEdge.data?.fromCol : connectedEdge.data?.toCol;
+                return { ...n, data: { ...n.data, hoveredColumn: targetCol } };
+            }
+
+            return n;
+        }));
+    }, [edges, setEdges, setNodes]);
+
+    const onColumnMouseLeave = useCallback(() => {
+        setHoveredNode(null);
+        setEdges((eds) => eds.map((edge) => ({
+            ...edge,
+            animated: true,
+            style: {
+                ...edge.style,
+                stroke: '#4f46e5',
+                strokeWidth: 2,
+                opacity: 0.6
+            }
+        })));
+
+        setNodes((nds) => nds.map((n) => ({
+            ...n,
+            data: { ...n.data, isHovered: false, hoveredColumn: null }
+        })));
+    }, [setEdges, setNodes]);
 
     // CRITICAL: ACTIVE VERSION ONLY RULE
     // This function ALWAYS loads ONLY the latest schema version.
@@ -82,48 +200,63 @@ const ERDiagramsContent = () => {
         setEdges([]);
 
         try {
-            // 1. Try to fetch the saved diagram layout (LATEST ONLY)
-            const { data: dData } = await supabase
-                .from('diagram_states')
-                .select('diagram_json')
-                .eq('project_id', projectId)
-                .order('created_at', { ascending: false })
-                .limit(1) // CRITICAL: Only latest diagram state
-                .maybeSingle();
+            // Parallel fetch both the saved layout and the raw schema to minimize latency
+            const [layoutResponse, schemaResponse] = await Promise.all([
+                supabase
+                    .from('diagram_states')
+                    .select('diagram_json')
+                    .eq('project_id', projectId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle(),
+                supabase
+                    .from('schema_versions')
+                    .select('normalized_schema')
+                    .eq('project_id', projectId)
+                    .order('version', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+            ]);
+
+            const dData = layoutResponse.data;
+            const vData = schemaResponse.data;
 
             if (dData && dData.diagram_json) {
                 const { nodes: savedNodes, edges: savedEdges } = dData.diagram_json as any;
-                if (savedNodes) setNodes(savedNodes);
-                if (savedEdges) setEdges(savedEdges);
+                // Inject handlers into saved nodes
+                const nodesWithHandlers = savedNodes.map((n: any) => ({
+                    ...n,
+                    data: {
+                        ...n.data,
+                        onColumnMouseEnter: (col: string) => onColumnMouseEnter(n.id, col),
+                        onColumnMouseLeave
+                    }
+                }));
+                setNodes(nodesWithHandlers);
+                setEdges(savedEdges);
                 setLoading(false);
+                setTimeout(() => fitView({ duration: 800 }), 100);
                 return;
             }
-
-            // 2. Fallback: Generate from latest normalized schema (LATEST ONLY)
-            const { data: vData } = await supabase
-                .from('schema_versions')
-                .select('normalized_schema')
-                .eq('project_id', projectId)
-                .order('version', { ascending: false })
-                .limit(1) // CRITICAL: Only latest schema version
-                .maybeSingle();
 
             if (vData) {
                 const schema = vData.normalized_schema as any;
 
                 // Generate nodes
-                const flowNodes = Object.entries(schema.tables).map(([name, table]: [string, any], i: number) => ({
+                const initialNodes = Object.entries(schema.tables).map(([name, table]: [string, any]) => ({
                     id: name,
                     type: 'table',
-                    position: { x: i * 250 + 50, y: 100 },
+                    position: { x: 0, y: 0 }, // Will be set by dagre
                     data: {
                         label: name,
-                        columns: table.columns
+                        columns: table.columns,
+                        onColumnMouseEnter: (col: string) => onColumnMouseEnter(name, col),
+                        onColumnMouseLeave
                     }
                 }));
 
                 // Generate edges from relations
-                const flowEdges: any[] = [];
+                const initialEdges: any[] = [];
                 Object.entries(schema.tables).forEach(([_, table]: [string, any]) => {
                     if (table.relations && Array.isArray(table.relations)) {
                         table.relations.forEach((rel: any) => {
@@ -133,7 +266,7 @@ const ERDiagramsContent = () => {
                                 const [toTable, toCol] = rel.to.split('.');
 
                                 if (fromTable && toTable && fromCol && toCol) {
-                                    flowEdges.push({
+                                    initialEdges.push({
                                         id: `${rel.from}-${rel.to}`,
                                         source: fromTable,
                                         target: toTable,
@@ -141,9 +274,11 @@ const ERDiagramsContent = () => {
                                         targetHandle: `${toTable}.${toCol}.target`,
                                         type: 'smoothstep',
                                         animated: true,
-                                        style: { stroke: '#6366f1', strokeWidth: 2 },
-                                        label: fromCol,
-                                        labelStyle: { fontSize: 10, fill: '#64748b' }
+                                        style: { stroke: '#4f46e5', strokeWidth: 2, opacity: 0.6 },
+                                        interactionWidth: 20,
+                                        label: showLabels ? fromCol : '',
+                                        labelStyle: { fontSize: 10, fill: '#6366f1', fontWeight: 'bold' },
+                                        data: { fromCol, toCol } // Column level info
                                     });
                                 }
                             }
@@ -151,16 +286,63 @@ const ERDiagramsContent = () => {
                     }
                 });
 
-                setNodes(flowNodes);
-                setEdges(flowEdges);
+                const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(initialNodes, initialEdges);
 
+                setNodes([...layoutedNodes]);
+                setEdges([...layoutedEdges]);
+                setTimeout(() => fitView({ duration: 800 }), 100);
             }
         } catch (err) {
             console.error("Failed to load diagram:", err);
         } finally {
             setLoading(false);
         }
-    }, [projectId, setNodes, setEdges]);
+    }, [projectId, setNodes, setEdges, showLabels, fitView, onColumnMouseEnter, onColumnMouseLeave]);
+
+    // Handle Hover Interaction
+    const onNodeMouseEnter = useCallback((_: any, node: any) => {
+        setHoveredNode(node.id);
+
+        // 1. Highlight connected edges
+        setEdges((eds) => eds.map((edge) => {
+            const isConnected = edge.source === node.id || edge.target === node.id;
+            return {
+                ...edge,
+                animated: isConnected,
+                style: {
+                    ...edge.style,
+                    stroke: isConnected ? '#4f46e5' : '#cbd5e1',
+                    strokeWidth: isConnected ? 3 : 1,
+                    opacity: isConnected ? 1 : 0.1
+                }
+            };
+        }));
+
+        // 2. Highlight the node itself and dim others
+        setNodes((nds) => nds.map((n) => ({
+            ...n,
+            data: { ...n.data, isHovered: n.id === node.id }
+        })));
+    }, [setEdges, setNodes]);
+
+    const onNodeMouseLeave = useCallback(() => {
+        setHoveredNode(null);
+        setEdges((eds) => eds.map((edge) => ({
+            ...edge,
+            animated: true,
+            style: {
+                ...edge.style,
+                stroke: '#4f46e5',
+                strokeWidth: 2,
+                opacity: 0.6
+            }
+        })));
+
+        setNodes((nds) => nds.map((n) => ({
+            ...n,
+            data: { ...n.data, isHovered: false }
+        })));
+    }, [setEdges, setNodes]);
 
     // Auto-load diagram on mount and when projectId changes
     // This ensures fresh data every time user navigates to this page
@@ -189,13 +371,23 @@ const ERDiagramsContent = () => {
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
+                onNodeMouseEnter={onNodeMouseEnter}
+                onNodeMouseLeave={onNodeMouseLeave}
                 nodeTypes={nodeTypes}
+                snapToGrid
+                snapGrid={[20, 20]}
                 fitView
             >
                 <Background color={isDarkMode ? '#334155' : '#cbd5e1'} gap={24} />
                 <Controls />
                 <MiniMap />
             </ReactFlow>
+
+            {loading && (
+                <div className="absolute inset-0 z-[100] bg-white/50 backdrop-blur-sm flex items-center justify-center">
+                    <LoadingSection title="Visualizing Blueprint..." subtitle="Generating graph nodes and relationships." variant="full" />
+                </div>
+            )}
 
             {/* Mac-style Three Dots - Top Left */}
             <div className="absolute top-4 left-4 z-[20]">

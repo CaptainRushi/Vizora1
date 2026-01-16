@@ -4,6 +4,7 @@ import { useProjectContext } from '../context/ProjectContext';
 import { Sidebar } from '../components/Sidebar';
 import { Menu, X, Database } from 'lucide-react';
 import { Logo } from '../components/VizoraLogo';
+import { LoadingSection } from '../components/LoadingSection';
 
 import { FeedbackButton } from '../components/beta/FeedbackButton';
 
@@ -26,11 +27,8 @@ export function ProjectLayout({ children }: ProjectLayoutProps) {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-                    <p className="mt-4 text-sm text-gray-600">Loading project...</p>
-                </div>
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
+                <LoadingSection title="Initializing Workspace..." subtitle="Fetching your schema and intelligence metadata." />
             </div>
         );
     }

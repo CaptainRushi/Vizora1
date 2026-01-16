@@ -8,7 +8,6 @@ import {
     BookOpen,
     GitBranch,
     Sparkles,
-    Check,
     AlertTriangle
 } from 'lucide-react';
 import { Hero } from '../components/Hero';
@@ -258,71 +257,27 @@ export function LandingPage() {
                     </div>
                 </section>
 
-                {/* 7. PRICING */}
+                {/* 7. PRIVATE BETA STATUS */}
                 <section id="pricing" className="app-section bg-white">
                     <div className="app-container">
-                        <div className="text-center mb-20">
-                            <h2 className="mb-4 text-slate-900">Pricing that matches your scale</h2>
-                            <p className="text-slate-500 font-medium max-w-2xl mx-auto">
-                                Pricing is currently disabled during private beta. Early users help shape the product.
+                        <div className="max-w-4xl mx-auto bg-slate-50 border border-slate-100 rounded-[3rem] p-12 text-center relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-12 opacity-[0.03] rotate-12">
+                                <Sparkles size={120} />
+                            </div>
+                            <h2 className="mb-6 text-slate-900">Open Private Beta</h2>
+                            <p className="text-xl text-slate-500 font-medium mb-10 max-w-2xl mx-auto leading-relaxed">
+                                Vizora is currently in an invite-only private beta phase. We are collaborating with early users to refine our AI and diagramming capabilities.
                             </p>
-                        </div>
-
-                        <div className="pricing-grid">
-                            {[
-                                {
-                                    plan: "Free", price: "₹0", sub: "Evaluation only",
-                                    features: ["1 project", "2 schema versions", "ER diagram (view-only)", "DB-level AI summary", "Docs preview only"]
-                                },
-                                {
-                                    plan: "Pro", price: "₹1,499", sub: "Solo devs", featured: true,
-                                    features: ["5 projects", "30 schema versions", "Full ER diagrams", "Table-level AI", "Markdown exports", "SQL Designer"]
-                                },
-                                {
-                                    plan: "Teams", price: "₹4,999", sub: "Startups",
-                                    features: ["20 projects", "Unlimited versions", "Full Architecture AI", "Schema comments", "Team collaboration", "Priority rendering"]
-                                },
-                                {
-                                    plan: "Business", price: "₹9,999", sub: "High-leverage",
-                                    features: ["Unlimited projects", "Unlimited members", "White-label exports", "Priority queue", "Early feature access"]
-                                }
-                            ].map((tier, i) => (
-                                <div
-                                    key={i}
-                                    className={`pricing-card ${tier.featured ? 'ring-2 ring-indigo-500 shadow-2xl relative lg:scale-105 z-10' : 'bg-slate-50/50 border-transparent'}`}
-                                >
-                                    {tier.featured && (
-                                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full">
-                                            Most Popular
-                                        </span>
-                                    )}
-                                    <div className="pricing-card-header text-center lg:text-left">
-                                        <h3 className="text-xl font-bold text-slate-900 mb-1">{tier.plan}</h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{tier.sub}</p>
-                                        <div className="flex items-baseline justify-center lg:justify-start gap-1">
-                                            <span className="text-4xl font-extrabold text-slate-900">{tier.price}</span>
-                                            <span className="text-slate-500 text-sm font-medium">/mo</span>
-                                        </div>
-                                    </div>
-                                    <div className="pricing-card-features">
-                                        {tier.features.map((f, j) => (
-                                            <div key={j} className="flex items-start gap-3 text-sm text-slate-600 font-medium">
-                                                <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                                                <span className="leading-tight">{f}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="pricing-card-footer">
-                                        <Button
-                                            variant={tier.featured ? 'primary' : 'secondary'}
-                                            className="w-full h-12 text-sm font-bold"
-                                            onClick={handleCtaClick}
-                                        >
-                                            Join Beta
-                                        </Button>
-                                    </div>
+                            <div className="flex flex-col items-center gap-6">
+                                <div className="bg-white px-8 py-4 rounded-2xl border border-slate-100 shadow-sm">
+                                    <p className="text-slate-900 font-black text-lg italic">
+                                        "Currently free for all early access users. Billing will be announced post-beta."
+                                    </p>
                                 </div>
-                            ))}
+                                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                                    Want to help shape our pricing? <a href="mailto:vizoraofficial9@gmail.com" className="text-indigo-600 underline">Get in touch →</a>
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -439,7 +394,6 @@ export function LandingPage() {
                                 <h4 className="font-bold text-slate-900 text-sm uppercase tracking-widest">Product</h4>
                                 <ul className="space-y-3 text-sm text-slate-500 font-medium">
                                     <li><a href="#features" className="hover:text-indigo-600 transition-colors">Features</a></li>
-                                    <li><a href="#pricing" className="hover:text-indigo-600 transition-colors">Pricing</a></li>
                                     <li><a href="#" className="hover:text-indigo-600 transition-colors">Documentation</a></li>
                                 </ul>
                             </div>

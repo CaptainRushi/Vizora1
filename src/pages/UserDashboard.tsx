@@ -3,11 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
     User,
-    CreditCard,
     Users as UsersIcon,
     Activity,
     Shield,
-    CheckCircle2,
     Clock,
     Database,
     FileText,
@@ -16,24 +14,21 @@ import {
     Trash2,
     Copy,
     Ban,
-    Beaker,
     ExternalLink,
     MessageSquare,
     GitBranch,
     Sparkles,
-    ArrowUpRight,
     Building2,
     HelpCircle,
     Bug,
     Lightbulb,
     Headphones,
-    Check,
-    AlertCircle,
     Pencil
 } from 'lucide-react';
 import { InviteModal } from '../components/dashboard/InviteModal';
 import { DeleteAccountModal } from '../components/dashboard/DeleteAccountModal';
 import { EditProfileDrawer } from '../components/dashboard/EditProfileDrawer';
+import { LoadingSection } from '../components/LoadingSection';
 
 // ============================
 // TYPES
@@ -62,24 +57,6 @@ interface UsageData {
     docs_generated: number;
     ai_questions: number;
     last_activity: string | null;
-}
-
-interface BillingData {
-    plan: {
-        id: string;
-        name: string;
-        price: number;
-        cycle: string;
-    };
-    status: 'active' | 'trial' | 'expired' | 'past_due';
-    renewal_date: string | null;
-    limits: {
-        projects: { used: number; allowed: number };
-        versions: { used: number; allowed: number };
-        ai: { used: number; allowed: number };
-        exports: boolean;
-        team: boolean;
-    };
 }
 
 interface TeamMember {
@@ -132,37 +109,6 @@ function StatCard({ icon: Icon, label, value, subtext }: {
             <p className="text-2xl font-black text-gray-900 mb-1">{value}</p>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</p>
             {subtext && <p className="text-[10px] text-gray-400 mt-1">{subtext}</p>}
-        </div>
-    );
-}
-
-function LimitBar({ label, used, allowed, icon: Icon }: {
-    label: string;
-    used: number;
-    allowed: number;
-    icon: React.ElementType;
-}) {
-    const percentage = allowed === -1 ? 0 : Math.min((used / allowed) * 100, 100);
-    const isUnlimited = allowed === -1;
-
-    return (
-        <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2 text-gray-600 font-medium">
-                    <Icon className="w-4 h-4" />
-                    <span>{label}</span>
-                </div>
-                <span className="font-bold text-gray-900">
-                    {used} / {isUnlimited ? '∞' : allowed}
-                </span>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                    className={`h-full rounded-full transition-all duration-500 ${percentage > 80 ? 'bg-amber-500' : percentage > 95 ? 'bg-red-500' : 'bg-indigo-500'
-                        }`}
-                    style={{ width: `${isUnlimited ? 0 : percentage}%` }}
-                />
-            </div>
         </div>
     );
 }
@@ -227,7 +173,6 @@ export function UserDashboard() {
     // State
     const [identity, setIdentity] = useState<IdentityData | null>(null);
     const [usage, setUsage] = useState<UsageData | null>(null);
-    const [billing, setBilling] = useState<BillingData | null>(null);
     const [team, setTeam] = useState<TeamData | null>(null);
     const [activity, setActivity] = useState<ActivityItem[]>([]);
     const [invites, setInvites] = useState<Invite[]>([]);
@@ -235,10 +180,6 @@ export function UserDashboard() {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
-
-    // Beta state (for backwards compatibility during beta period)
-    const [betaConfig, setBetaConfig] = useState<any>(null);
-    const [betaUsage, setBetaUsage] = useState<any>(null);
 
     // ============================
     // DATA FETCHING
@@ -336,11 +277,9 @@ export function UserDashboard() {
 
             // Parallel fetch remaining data if we have workspace
             if (workspaceId) {
-                const [usageResult, billingResult, teamResult, invitesResult] = await Promise.all([
+                const [usageResult, teamResult, invitesResult] = await Promise.all([
                     // Usage stats
                     fetchUsageStats(workspaceId),
-                    // Billing info
-                    fetchBillingInfo(workspaceId),
                     // Team members
                     fetchTeamData(workspaceId),
                     // Active invites (admin only)
@@ -348,16 +287,12 @@ export function UserDashboard() {
                 ]);
 
                 setUsage(usageResult);
-                setBilling(billingResult);
                 setTeam(teamResult);
                 setInvites(invitesResult);
 
                 // Fetch activity
                 fetchActivity(workspaceId);
             }
-
-            // Fetch beta status
-            fetchBetaStatus();
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -412,48 +347,6 @@ export function UserDashboard() {
             docs_generated: totalDocs,
             ai_questions: totalAiQuestions,
             last_activity: lastActivity
-        };
-    };
-
-    const fetchBillingInfo = async (workspaceId: string): Promise<BillingData> => {
-        // Get billing
-        const { data: billing } = await supabase
-            .from('workspace_billing')
-            .select('plan_id, status, start_at, expires_at')
-            .eq('workspace_id', workspaceId)
-            .maybeSingle();
-
-        const planId = billing?.plan_id || 'free';
-
-        // Get plan details
-        const { data: plan } = await supabase
-            .from('billing_plans')
-            .select('*')
-            .eq('id', planId)
-            .single();
-
-        // Get project count
-        const { count: projectCount } = await supabase
-            .from('projects')
-            .select('*', { count: 'exact', head: true })
-            .eq('workspace_id', workspaceId);
-
-        return {
-            plan: {
-                id: plan?.id || 'free',
-                name: plan?.id === 'teams' ? 'Teams' : plan?.id === 'pro' ? 'Pro' : 'Free',
-                price: plan?.price_inr || 0,
-                cycle: 'monthly'
-            },
-            status: (billing?.status as any) || 'active',
-            renewal_date: billing?.expires_at || null,
-            limits: {
-                projects: { used: projectCount || 0, allowed: plan?.project_limit || 1 },
-                versions: { used: 0, allowed: plan?.version_limit || 2 },
-                ai: { used: 0, allowed: -1 },
-                exports: plan?.allow_exports || false,
-                team: plan?.allow_team || false
-            }
         };
     };
 
@@ -555,29 +448,6 @@ export function UserDashboard() {
         }
     };
 
-    const fetchBetaStatus = async () => {
-        if (!user) return;
-
-        try {
-            setBetaConfig({
-                beta_mode: true,
-                beta_project_limit: 2,
-                beta_version_limit: 5,
-                beta_label: "Private Beta"
-            });
-
-            const { data } = await supabase
-                .from('beta_usage')
-                .select('*')
-                .eq('user_id', user.id)
-                .maybeSingle();
-
-            setBetaUsage(data);
-        } catch (err) {
-            console.error('Beta status fetch error:', err);
-        }
-    };
-
     useEffect(() => {
         fetchDashboardData();
     }, [fetchDashboardData]);
@@ -643,11 +513,8 @@ export function UserDashboard() {
     // ============================
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                    <p className="text-sm text-gray-500 font-medium">Loading your dashboard...</p>
-                </div>
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <LoadingSection title="Syncing Dashboard..." subtitle="Aggregating your workspace usage and team activity." />
             </div>
         );
     }
@@ -809,97 +676,34 @@ export function UserDashboard() {
                 </section>
 
                 {/* ============================
-                    SECTION 3: PLAN & BILLING OVERVIEW
+                    SECTION 3: PRIVATE BETA STATUS
                 ============================ */}
-                <section className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
-                    <div className="p-8 border-b border-gray-100">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2.5 bg-indigo-50 rounded-xl">
-                                <CreditCard className="w-5 h-5 text-indigo-600" />
-                            </div>
-                            <h2 className="text-lg font-bold text-gray-900">Plan & Billing</h2>
-                        </div>
-
-                        {/* Plan Header */}
-                        <div className="flex items-start justify-between mb-8">
+                <section className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-8 text-white relative overflow-hidden shadow-xl">
+                    <div className="absolute top-0 right-0 p-8 opacity-10">
+                        <Sparkles className="w-32 h-32 rotate-12" />
+                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
                             <div>
-                                <div className="flex items-center gap-3 mb-2">
-                                    <span className={`px-4 py-2 rounded-xl text-lg font-black ${billing?.plan.id === 'teams'
-                                        ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white'
-                                        : billing?.plan.id === 'pro'
-                                            ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white'
-                                            : 'bg-gray-100 text-gray-800'
-                                        }`}>
-                                        {billing?.plan.name || 'Free'} Plan
-                                    </span>
-                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full ${billing?.status === 'active'
-                                        ? 'bg-green-50 text-green-700'
-                                        : billing?.status === 'trial'
-                                            ? 'bg-amber-50 text-amber-700'
-                                            : 'bg-red-50 text-red-700'
-                                        }`}>
-                                        {billing?.status === 'active' ? (
-                                            <><CheckCircle2 className="w-3 h-3" /> Active</>
-                                        ) : billing?.status === 'trial' ? (
-                                            <><Clock className="w-3 h-3" /> Trial</>
-                                        ) : (
-                                            <><AlertCircle className="w-3 h-3" /> {billing?.status}</>
-                                        )}
-                                    </span>
-                                </div>
-                                {billing?.plan.price && billing.plan.price > 0 && (
-                                    <p className="text-sm text-gray-500">
-                                        ₹{billing.plan.price.toLocaleString()} / {billing.plan.cycle}
-                                    </p>
-                                )}
-                                {billing?.renewal_date && (
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        Renews {new Date(billing.renewal_date).toLocaleDateString()}
-                                    </p>
-                                )}
+                                <h2 className="text-2xl font-black tracking-tight">Private Beta Access</h2>
+                                <p className="text-indigo-100 font-medium mt-1">Vizora is currently in early access. Enjoy full capability while we refine the platform.</p>
                             </div>
-
-                            {billing?.plan.id === 'free' && (
-                                <a
-                                    href="/billing"
-                                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm rounded-xl hover:shadow-lg transition-all hover:scale-105"
-                                >
-                                    Upgrade Plan
-                                    <ArrowUpRight className="w-4 h-4" />
-                                </a>
-                            )}
+                            <span className="px-5 py-2 bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 text-[10px] font-black uppercase tracking-[0.2em]">
+                                Beta Tier Active
+                            </span>
                         </div>
-
-                        {/* Limits */}
-                        <div className="space-y-4">
-                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Plan Limits</h3>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <LimitBar
-                                    label="Projects"
-                                    used={billing?.limits.projects.used || 0}
-                                    allowed={billing?.limits.projects.allowed || 1}
-                                    icon={Database}
-                                />
-                                <LimitBar
-                                    label="Version Limit"
-                                    used={billing?.limits.versions.used || 0}
-                                    allowed={billing?.limits.versions.allowed || 2}
-                                    icon={GitBranch}
-                                />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-white/10">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs font-bold text-indigo-200 uppercase tracking-widest">Status</span>
+                                <span className="text-lg font-black italic">"Fully usable, exploratory, and welcoming"</span>
                             </div>
-
-                            {/* Feature availability */}
-                            <div className="flex flex-wrap gap-3 pt-4">
-                                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg ${billing?.limits.exports ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'
-                                    }`}>
-                                    {billing?.limits.exports ? <Check className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                                    Exports
-                                </span>
-                                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg ${billing?.limits.team ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'
-                                    }`}>
-                                    {billing?.limits.team ? <Check className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                                    Team Collaboration
-                                </span>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs font-bold text-indigo-200 uppercase tracking-widest">Pricing</span>
+                                <span className="text-lg font-black">Announcing soon</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs font-bold text-indigo-200 uppercase tracking-widest">Feedback</span>
+                                <span className="text-sm font-bold text-indigo-50 hover:text-white transition-colors cursor-pointer">Shape our future →</span>
                             </div>
                         </div>
                     </div>
@@ -1063,69 +867,6 @@ export function UserDashboard() {
                         </div>
                     )}
                 </section>
-
-                {/* ============================
-                    PRIVATE BETA STATUS (Preserved from original)
-                ============================ */}
-                {betaConfig?.beta_mode && (
-                    <section className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-800 rounded-3xl p-8 text-white relative overflow-hidden shadow-xl">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <Beaker className="w-32 h-32 rotate-12" />
-                        </div>
-                        <div className="absolute -bottom-16 -left-16 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl"></div>
-
-                        <div className="relative z-10 space-y-8">
-                            <div className="flex items-center justify-between">
-                                <div className="space-y-1">
-                                    <h2 className="text-xl font-black tracking-tight">Private Beta Status</h2>
-                                    <p className="text-indigo-300 text-sm font-medium">Your activity during the early access period</p>
-                                </div>
-                                <span className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-xs font-black uppercase tracking-widest">
-                                    {betaConfig.beta_label}
-                                </span>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-indigo-200">
-                                        <span>Projects Created</span>
-                                        <span className="text-white">{betaUsage?.projects_created || 0} / {betaConfig.beta_project_limit}</span>
-                                    </div>
-                                    <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-gradient-to-r from-white to-indigo-200 rounded-full transition-all duration-700 ease-out"
-                                            style={{ width: `${Math.min(((betaUsage?.projects_created || 0) / betaConfig.beta_project_limit) * 100, 100)}%` }}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-indigo-200">
-                                        <span>Schema Versions</span>
-                                        <span className="text-white">{betaUsage?.versions_created || 0} / {betaConfig.beta_version_limit * betaConfig.beta_project_limit}</span>
-                                    </div>
-                                    <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-gradient-to-r from-white to-indigo-200 rounded-full transition-all duration-700 ease-out"
-                                            style={{ width: `${Math.min(((betaUsage?.versions_created || 0) / (betaConfig.beta_project_limit * betaConfig.beta_version_limit)) * 100, 100)}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="pt-6 border-t border-white/10 flex flex-wrap gap-6">
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-green-400" />
-                                    <span className="text-xs font-bold text-indigo-100">{betaUsage?.diagrams_viewed || 0} Diagrams Viewed</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-green-400" />
-                                    <span className="text-xs font-bold text-indigo-100">{betaUsage?.docs_generated || 0} Docs Generated</span>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                )}
 
                 {/* ============================
                     SECTION 5: RECENT ACTIVITY LOG

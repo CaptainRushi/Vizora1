@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useProject } from '../../hooks/useProject';
 import { api } from '../../lib/api';
 import { AlertCircle, AlertTriangle, Lightbulb, ShieldCheck, RefreshCw, Table } from 'lucide-react';
+import PasteSchemaEmptyState from '../../components/dashboard/PasteSchemaEmptyState';
+import { LoadingSection } from '../../components/LoadingSection';
 
 interface Finding {
     entity: string;
@@ -71,10 +73,10 @@ export default function SchemaReview() {
 
     if (loading) {
         return (
-            <div className="p-8 flex flex-col items-center justify-center min-h-[60vh]">
-                <RefreshCw className="h-8 w-8 text-indigo-500 animate-spin mb-4" />
-                <p className="text-slate-500 font-medium">Analyzing schema quality & risks...</p>
-            </div>
+            <LoadingSection
+                title="Reviewing Schema Architects..."
+                subtitle="Calculating normalization scores and identifying design anti-patterns."
+            />
         );
     }
 
@@ -94,6 +96,10 @@ export default function SchemaReview() {
                 </div>
             </div>
         );
+    }
+
+    if (results && (results as any).state === 'empty') {
+        return <PasteSchemaEmptyState feature="review" />;
     }
 
     const totalIssues = (results?.critical.length || 0) + (results?.warnings.length || 0) + (results?.suggestions.length || 0);

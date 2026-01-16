@@ -743,15 +743,20 @@ app.post('/projects', async (req, res) => {
             return res.status(400).json({ error: "Name, schema_type, and workspace_id required" });
         }
 
-        let ownerId = await getOwnerIdFromWorkspace(workspace_id);
+        // 1 & 2. Parallelize Owner lookup and Limit Checks
+        const [ownerId, limitCheck] = await Promise.all([
+            getOwnerIdFromWorkspace(workspace_id),
+            checkProjectLimit(workspace_id)
+        ]);
 
-        // Fallback to user_id if workspace owner lookup fails (safeguard for race conditions during onboarding)
-        if (!ownerId && user_id) ownerId = user_id;
+        if (!ownerId && user_id) {
+            // Safe fallback if lookup fails
+        } else if (!ownerId) {
+            return res.status(404).json({ error: "Workspace owner not found" });
+        }
 
-        if (!ownerId) return res.status(404).json({ error: "Workspace owner not found" });
+        const finalOwnerId = ownerId || user_id;
 
-        // 1. BILLING GATE: Check Workspace Limit
-        const limitCheck = await checkProjectLimit(workspace_id);
         if (!limitCheck.allowed) {
             return res.status(403).json({
                 error: "Plan Limit Reached",
@@ -759,13 +764,12 @@ app.post('/projects', async (req, res) => {
             });
         }
 
-        // 2. BETA GUARD: Project Limit (Backend Logic)
+        // 3. BETA GUARD: Project Limit
         if (BETA_MODE) {
-            // Count projects for this owner
             const { count, error: countErr } = await supabase
                 .from('projects')
                 .select('*', { count: 'exact', head: true })
-                .eq('owner_id', ownerId);
+                .eq('owner_id', finalOwnerId);
 
             if (countErr) throw countErr;
 
@@ -777,9 +781,9 @@ app.post('/projects', async (req, res) => {
             }
         }
 
-        console.log("Creating project:", { name, schema_type, workspace_id, ownerId });
+        console.log("Creating project:", { name, schema_type, workspace_id, ownerId: finalOwnerId });
 
-        // 3. ATOMIC DB CHECK (Trigger will catch if race condition occurs)
+        // 4. ATOMIC DB INSERT
         const { data, error } = await supabase
             .from('projects')
             .insert({
@@ -787,7 +791,7 @@ app.post('/projects', async (req, res) => {
                 schema_type,
                 current_step: 'schema',
                 workspace_id,
-                owner_id: ownerId // Explicitly set owner_id
+                owner_id: finalOwnerId
             })
             .select()
             .single();
@@ -1258,36 +1262,10 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
             return res.status(400).json({ error: "raw_schema is required" });
         }
 
-        // BILLING GATE: Check version count
-        const workspaceId = await getWorkspaceIdFromProject(id);
-
-        // If no workspace context (legacy project), we might skip or fail.
-        // For now, if we can't resolve workspace, we skip check (or enforce default).
-        if (workspaceId) {
-            const check = await checkVersionLimit(workspaceId, id);
-            if (!check.allowed) {
-                return res.status(403).json({
-                    error: "Version limit reached",
-                    message: check.message
-                });
-            }
-
-            // BETA GUARD: Version Limit
-            if (BETA_MODE) {
-                const { count } = await supabase.from('schema_versions').select('id', { count: 'exact', head: true }).eq('project_id', id);
-                if ((count || 0) >= BETA_VERSION_LIMIT) {
-                    return res.status(403).json({
-                        error: "Private Beta Limit Reached",
-                        message: `Schema version limit reached in beta (max ${BETA_VERSION_LIMIT} versions per project).`
-                    });
-                }
-            }
-        }
-
-        // Get project schema type to determine which parser to use
+        // 1. PROJECT CONTEXT & SETTINGS (Parallel Fetch)
         const { data: project, error: projectErr } = await supabase
             .from('projects')
-            .select('schema_type')
+            .select('workspace_id, owner_id, schema_type, project_settings(*)')
             .eq('id', id)
             .single();
 
@@ -1295,10 +1273,43 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
             return res.status(404).json({ error: "Project not found" });
         }
 
+        const workspaceId = project.workspace_id;
+        const ownerId = project.owner_id;
         const schemaType = project.schema_type || 'sql';
+        const settings = project.project_settings?.[0] || project.project_settings; // Support both array/object depending on join
+
+        // 2. LIMIT CHECKS & PREVIOUS VERSION (Parallel)
+        const [limitCheck, latestVerResult] = await Promise.all([
+            workspaceId ? checkVersionLimit(workspaceId, id) : Promise.resolve({ allowed: true }),
+            supabase
+                .from('schema_versions')
+                .select('version, schema_hash')
+                .eq('project_id', id)
+                .order('version', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+        ]);
+
+        if (limitCheck && !limitCheck.allowed) {
+            return res.status(403).json({ error: "Version limit reached", message: (limitCheck as any).message });
+        }
+
+        const latestVer = latestVerResult.data;
+
+        // BETA GUARD: Version Limit 
+        if (workspaceId && BETA_MODE) {
+            const { count } = await supabase.from('schema_versions').select('id', { count: 'exact', head: true }).eq('project_id', id);
+            if ((count || 0) >= BETA_VERSION_LIMIT) {
+                return res.status(403).json({
+                    error: "Private Beta Limit Reached",
+                    message: `Schema version limit reached in beta (max ${BETA_VERSION_LIMIT} versions per project).`
+                });
+            }
+        }
+
         console.log(`[Schema Ingestion] Using parser for type: ${schemaType}`);
 
-        // 1. Parse Schema using the appropriate parser
+        // 3. Parse Schema
         let result;
         switch (schemaType) {
             case 'prisma':
@@ -1320,6 +1331,8 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
         const schemaHash = computeHash(result.schema);
 
         // 2. Fetch Latest Version (to check for changes)
+        // ALREADY FETCHED ABOVE IN PARALLEL
+        /*
         const { data: latestVer } = await supabase
             .from('schema_versions')
             .select('version, schema_hash')
@@ -1327,6 +1340,7 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
             .order('version', { ascending: false })
             .limit(1)
             .maybeSingle();
+        */
 
         // 3. Compare Hash (Avoid Redundancy)
         if (latestVer && latestVer.schema_hash === schemaHash) {
@@ -1373,10 +1387,10 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
             }
         }
 
-        // 5. Check Settings & Auto-Trigger
-        const { data: settings } = await supabase.from('project_settings').select('*').eq('project_id', id).single();
+        // 5. UPDATE PROJECT STEP
+        await supabase.from('projects').update({ current_step: 'diagram' }).eq('id', id);
 
-        // Always generate explanations for fresh data
+        // 6. ASYNC BACKGROUND TASKS (No Await)
         generateAndSaveExplanations(id as string, nextVersion, result.schema).then(async (success) => {
             if (success && settings?.auto_generate_docs) {
                 await generateDocumentation(id as string, nextVersion);
@@ -1385,7 +1399,9 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
             console.error('[Schema Ingestion] Background AI/Docs generation failed:', err);
         });
 
-        // 6. Version Retention Logic
+        if (ownerId) trackBetaUsage(ownerId as string, 'version');
+
+        // 7. Version Retention Logic (Parallel if possible)
         if (settings && !settings.retain_all_versions) {
             const RETAIN_COUNT = 20;
             const { data: oldVersions } = await supabase
@@ -1400,12 +1416,6 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
                 await supabase.from('schema_versions').delete().eq('project_id', id).in('version', versionsToDelete);
             }
         }
-
-        await supabase.from('projects').update({ current_step: 'diagram' }).eq('id', id as string);
-
-        // TRACK BETA USAGE
-        const ownerId = await getOwnerIdFromProject(id);
-        if (ownerId) await trackBetaUsage(ownerId as string, 'version');
 
         console.log(`[Schema Ingestion] Success! Version ${nextVersion} created`);
 

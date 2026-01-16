@@ -8,6 +8,7 @@ import {
     AlertTriangle, XCircle, Info, Zap, FileQuestion, Target,
     Eye, EyeOff, ArrowRight, Sparkles, Shield, HelpCircle
 } from 'lucide-react';
+import PasteSchemaEmptyState from '../../components/dashboard/PasteSchemaEmptyState';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INTERFACES — DEEP REPLY CONTEXT MODEL
@@ -446,6 +447,7 @@ export default function AskSchema() {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isEmpty, setIsEmpty] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -455,6 +457,21 @@ export default function AskSchema() {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    useEffect(() => {
+        const checkSchema = async () => {
+            if (!projectId) return;
+            try {
+                const versions = await api.getVersions(projectId);
+                if (!versions || versions.length === 0) {
+                    setIsEmpty(true);
+                }
+            } catch (err) {
+                console.error("Error checking schema:", err);
+            }
+        };
+        checkSchema();
+    }, [projectId]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -521,6 +538,10 @@ export default function AskSchema() {
         "What are all the foreign key relationships?",
         "What is the impact of removing user_id from posts?"
     ];
+
+    if (isEmpty) {
+        return <PasteSchemaEmptyState feature="ask" />;
+    }
 
     return (
         <div className="flex flex-col h-[calc(100vh-2rem)] bg-white overflow-hidden">

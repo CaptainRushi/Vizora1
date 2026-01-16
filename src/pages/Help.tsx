@@ -71,10 +71,10 @@ export function Help() {
             content: <VersioningChanges />
         },
         {
-            id: 'billing',
-            title: 'Billing & Plans',
+            id: 'beta',
+            title: 'Private Beta',
             icon: CreditCard,
-            content: <BillingPlans />
+            content: <PrivateBetaInfo />
         },
         {
             id: 'security',
@@ -434,42 +434,38 @@ function VersioningChanges() {
     );
 }
 
-function BillingPlans() {
+function PrivateBetaInfo() {
     return (
         <div className="space-y-6 text-gray-700">
             <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Billing Model</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                    <li>One-time payment per period</li>
-                    <li>No auto-renewal</li>
-                    <li>No subscriptions</li>
-                    <li>Manual renewal required</li>
-                </ul>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Early Access Period</h3>
+                <p>
+                    Vizora is currently in a private beta phase. During this time, the platform is free to use for all invited participants as we refine our features and scale our infrastructure.
+                </p>
             </div>
 
             <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Plan Expiry</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Beta Limits</h3>
                 <ul className="list-disc pl-5 space-y-1">
-                    <li>Plans are valid for a fixed period</li>
-                    <li>Expired plans fall back to Free tier</li>
-                    <li>No data is deleted on expiry</li>
+                    <li>Maximum 3 projects per workspace</li>
+                    <li>Up to 10 schema versions per project</li>
+                    <li>Full access to AI and export features</li>
                 </ul>
+                <p className="mt-2 text-sm italic text-gray-400">
+                    *These limits ensure stability and performance during the testing phase.
+                </p>
             </div>
 
             <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">What Happens on Expiry</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Data Post-Beta</h3>
                 <div className="space-y-3">
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-green-900">Projects Remain</h4>
-                        <p className="text-sm text-green-700 mt-1">All your projects and data are preserved.</p>
+                        <h4 className="font-semibold text-green-900">Projects Preserved</h4>
+                        <p className="text-sm text-green-700 mt-1">All your work, projects, and schema history will be preserved when we transition out of beta.</p>
                     </div>
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-yellow-900">Advanced Features Locked</h4>
-                        <p className="text-sm text-yellow-700 mt-1">AI explanations and exports require active plan.</p>
-                    </div>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-900">Renew Anytime</h4>
-                        <p className="text-sm text-blue-700 mt-1">Pay again to unlock all features immediately.</p>
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-indigo-900">Future Pricing</h4>
+                        <p className="text-sm text-indigo-700 mt-1">Pricing details will be announced near our official launch. Early beta users will receive a special thank-you for their contributions.</p>
                     </div>
                 </div>
             </div>
@@ -538,8 +534,8 @@ function FAQ() {
             a: 'Yes. Generate documentation for any project you have schema access to.'
         },
         {
-            q: 'What happens if I stop paying?',
-            a: 'Your data remains accessible. Advanced features are locked until renewal.'
+            q: 'Is Vizora free during beta?',
+            a: 'Yes. All invited users have full access to current features at no cost during the private beta period.'
         },
         {
             q: 'Can I delete a project?',
