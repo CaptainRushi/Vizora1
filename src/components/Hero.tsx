@@ -309,6 +309,7 @@ export function Hero() {
             </button>
 
             <button
+              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
               className="px-10 py-5 text-slate-600 font-bold hover:text-slate-900 transition-all flex items-center justify-center gap-2 group"
             >
               View Example
