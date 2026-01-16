@@ -10,7 +10,10 @@ interface Props {
     onSuccess: (version: number) => void;
 }
 
+import { useAuth } from '../context/AuthContext';
+
 export function QuickPasteModal({ projectId, isOpen, onClose, onSuccess }: Props) {
+    const { user } = useAuth();
     const [rawSchema, setRawSchema] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -25,7 +28,7 @@ export function QuickPasteModal({ projectId, isOpen, onClose, onSuccess }: Props
         setFeedback(null);
 
         try {
-            const res = await api.ingestSchema(projectId, rawSchema);
+            const res = await api.ingestSchema(projectId, rawSchema, user?.id);
             if (res.error) throw new Error(res.error);
 
             if (res.status === 'no_changes') {

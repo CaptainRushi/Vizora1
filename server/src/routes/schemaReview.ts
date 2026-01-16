@@ -32,6 +32,22 @@ router.post('/review', async (req, res) => {
             created_at: new Date().toISOString()
         }, { onConflict: 'project_id,version_number' }).select();
 
+        // ACTIVITY LOGGING
+        if (req.body.user_id) {
+            const { data: proj } = await supabase.from('projects').select('workspace_id, name').eq('id', project_id).single();
+            if (proj) {
+                const { logActivity } = await import('../services/activityLogger.js');
+                await logActivity({
+                    workspaceId: proj.workspace_id,
+                    userId: req.body.user_id,
+                    actionType: 'schema_review_generated',
+                    entityType: 'schema',
+                    entityName: proj.name, // Or version number?
+                    metadata: { version_number: version }
+                });
+            }
+        }
+
         res.json(findings);
     } catch (error: any) {
         console.error('[schemaReview Route] Error:', error);

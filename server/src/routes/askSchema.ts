@@ -484,6 +484,20 @@ Provide a complete response with all six required sections.`;
             created_at: new Date().toISOString()
         });
 
+        // ACTIVITY LOGGING
+        if (req.body.user_id) {
+            const { data: proj } = await supabase.from('projects').select('workspace_id').eq('id', project_id).single();
+            if (proj) {
+                const { logActivity } = await import('../services/activityLogger.js');
+                await logActivity({
+                    workspaceId: proj.workspace_id,
+                    userId: req.body.user_id,
+                    actionType: 'ai_question_asked',
+                    entityType: 'ai',
+                    metadata: { question_snippet: question.substring(0, 50) }
+                });
+            }
+        }
         // Return the deep reply response
         res.json(validatedResponse);
 

@@ -18,7 +18,11 @@ interface ReviewResults {
     suggestions: Finding[];
 }
 
+import { useAuth } from '../../context/AuthContext';
+// ... imports
+
 export default function SchemaReview() {
+    const { user } = useAuth();
     const { projectId } = useProject();
     const [loading, setLoading] = useState(true);
     const [results, setResults] = useState<ReviewResults | null>(null);
@@ -29,7 +33,7 @@ export default function SchemaReview() {
         setLoading(true);
         setError(null);
         try {
-            const data = await api.getSchemaReview(projectId);
+            const data = await api.getSchemaReview(projectId, user?.id);
             setResults(data);
         } catch (err: any) {
             setError(err.message);

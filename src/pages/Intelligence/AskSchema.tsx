@@ -62,6 +62,11 @@ interface Message {
     response?: DeepReplyResponse;
 }
 
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> local
 // ═══════════════════════════════════════════════════════════════════════════
 // RISK BADGE COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -440,7 +445,17 @@ const ConfidenceLimits = ({ data }: { data: ConfidenceAndLimits }) => {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
+<<<<<<< HEAD
+=======
+import { useAuth } from '../../context/AuthContext';
+// ... imports
+
+// ... components
+
+>>>>>>> Stashed changes
+>>>>>>> local
 export default function AskSchema() {
+    const { user } = useAuth();
     const { projectId } = useProject();
     const navigate = useNavigate();
     const [messages, setMessages] = useState<Message[]>([]);
@@ -489,7 +504,7 @@ export default function AskSchema() {
         setError(null);
 
         try {
-            const data = await api.askSchema(projectId, userMsg.text);
+            const data = await api.askSchema(projectId, userMsg.text, user?.id);
 
             const botMsg: Message = {
                 id: (Date.now() + 1).toString(),

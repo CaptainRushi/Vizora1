@@ -6,7 +6,10 @@ import ReactMarkdown from 'react-markdown';
 import PasteSchemaEmptyState from '../../components/dashboard/PasteSchemaEmptyState';
 import { LoadingSection } from '../../components/LoadingSection';
 
+import { useAuth } from '../../context/AuthContext';
+
 export default function OnboardingGuide() {
+    const { user } = useAuth();
     const { projectId } = useProject();
     const [loading, setLoading] = useState(true);
     const [content, setContent] = useState<string | null>(null);
@@ -20,7 +23,7 @@ export default function OnboardingGuide() {
         setError(null);
         setIsEmpty(false);
         try {
-            const data = await api.getOnboardingGuide(projectId, force);
+            const data = await api.getOnboardingGuide(projectId, force, user?.id);
             if (data.state === 'empty') {
                 setIsEmpty(true);
             } else {

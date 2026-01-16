@@ -12,8 +12,8 @@ export const api = {
         const res = await axios.post(`${API_BASE_URL}/projects`, { name, schema_type, workspace_id, user_id });
         return res.data;
     },
-    ingestSchema: async (projectId: string, raw_schema: string) => {
-        const res = await axios.post(`${API_BASE_URL}/projects/${projectId}/schema`, { raw_schema });
+    ingestSchema: async (projectId: string, raw_schema: string, user_id?: string) => {
+        const res = await axios.post(`${API_BASE_URL}/projects/${projectId}/schema`, { raw_schema, user_id });
         return res.data;
     },
     generateDiagram: async (projectId: string) => {
@@ -48,8 +48,8 @@ export const api = {
         const res = await axios.patch(`${API_BASE_URL}/projects/${projectId}/settings`, settings);
         return res.data;
     },
-    updateSchema: async (projectId: string, normalized_schema: any) => {
-        const res = await axios.put(`${API_BASE_URL}/projects/${projectId}/normalized-schema`, { normalized_schema });
+    updateSchema: async (projectId: string, normalized_schema: any, user_id?: string) => {
+        const res = await axios.put(`${API_BASE_URL}/projects/${projectId}/normalized-schema`, { normalized_schema, user_id });
         return res.data;
     },
     deleteProject: async (projectId: string) => {
@@ -95,16 +95,16 @@ export const api = {
     },
     // Intelligence APIs
     BACKEND_URL: API_BASE_URL,
-    getSchemaReview: async (projectId: string) => {
-        const res = await axios.post(`${API_BASE_URL}/api/schema/review`, { project_id: projectId });
+    getSchemaReview: async (projectId: string, userId?: string) => {
+        const res = await axios.post(`${API_BASE_URL}/api/schema/review`, { project_id: projectId, user_id: userId });
         return res.data;
     },
-    getOnboardingGuide: async (projectId: string, forceRefresh: boolean = false) => {
-        const res = await axios.post(`${API_BASE_URL}/api/schema/onboarding-guide`, { project_id: projectId, force_refresh: forceRefresh });
+    getOnboardingGuide: async (projectId: string, forceRefresh: boolean = false, userId?: string) => {
+        const res = await axios.post(`${API_BASE_URL}/api/schema/onboarding-guide`, { project_id: projectId, force_refresh: forceRefresh, user_id: userId });
         return res.data;
     },
-    askSchema: async (projectId: string, question: string) => {
-        const res = await axios.post(`${API_BASE_URL}/api/schema/ask`, { project_id: projectId, question });
+    askSchema: async (projectId: string, question: string, userId?: string) => {
+        const res = await axios.post(`${API_BASE_URL}/api/schema/ask`, { project_id: projectId, question, user_id: userId });
         return res.data;
     },
 
@@ -142,8 +142,8 @@ export const api = {
             const res = await axios.delete(`${API_BASE_URL}/api/dashboard/team/remove`, { data: { memberId, workspaceId, userId } });
             return res.data;
         },
-        getActivity: async (workspaceId: string, limit?: number) => {
-            const res = await axios.get(`${API_BASE_URL}/api/dashboard/activity`, { params: { workspaceId, limit } });
+        getActivityLog: async (workspaceId: string, limit?: number) => {
+            const res = await axios.get(`${API_BASE_URL}/api/dashboard/activity-log`, { params: { workspaceId, limit } });
             return res.data;
         },
         // Profile APIs for Edit Profile feature

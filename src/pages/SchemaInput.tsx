@@ -14,7 +14,10 @@ import { useNavigate } from 'react-router-dom';
 import { AboutBetaModal } from '../components/beta/AboutBetaModal';
 import { FeedbackNudge } from '../components/beta/FeedbackNudge';
 
+import { useAuth } from '../context/AuthContext';
+
 export function SchemaInput() {
+    const { user } = useAuth();
     const { projectId } = useProject();
     const navigate = useNavigate();
     const [rawSchema, setRawSchema] = useState('');
@@ -47,7 +50,7 @@ export function SchemaInput() {
         try {
             console.log('[SchemaInput] Sending schema to backend, length:', rawSchema.length);
             // This endpoint parses code into normalized schema and saves a version
-            const res = await api.ingestSchema(projectId, rawSchema);
+            const res = await api.ingestSchema(projectId, rawSchema, user?.id);
             console.log('[SchemaInput] Response:', res);
 
             if (res.error) throw new Error(res.error);

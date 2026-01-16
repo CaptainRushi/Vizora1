@@ -1,5 +1,6 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { logActivity } from '../services/activityLogger.js';
 
 const router = express.Router();
 
@@ -386,11 +387,11 @@ router.post('/team/invite', async (req, res) => {
         if (error) throw error;
 
         // Log activity
-        await supabase.from('activity_logs').insert({
-            workspace_id: workspaceId,
-            user_id: userId,
-            action: 'invite_created',
-            entity_type: 'team',
+        await logActivity({
+            workspaceId,
+            userId,
+            actionType: 'team_member_invited',
+            entityType: 'team',
             metadata: { role, expires_at: expiresAt.toISOString() }
         });
 
@@ -429,11 +430,11 @@ router.patch('/team/role', async (req, res) => {
 
         // Log activity
         if (workspaceId && userId) {
-            await supabase.from('activity_logs').insert({
-                workspace_id: workspaceId,
-                user_id: userId,
-                action: 'member_role_changed',
-                entity_type: 'team',
+            await logActivity({
+                workspaceId,
+                userId,
+                actionType: 'team_role_changed',
+                entityType: 'team',
                 metadata: { member_id: memberId, new_role: newRole }
             });
         }
@@ -466,11 +467,11 @@ router.delete('/team/remove', async (req, res) => {
 
         // Log activity
         if (workspaceId && userId) {
-            await supabase.from('activity_logs').insert({
-                workspace_id: workspaceId,
-                user_id: userId,
-                action: 'member_removed',
-                entity_type: 'team',
+            await logActivity({
+                workspaceId,
+                userId,
+                actionType: 'team_member_removed',
+                entityType: 'team',
                 metadata: { removed_member_id: memberId }
             });
         }
@@ -483,62 +484,82 @@ router.delete('/team/remove', async (req, res) => {
 });
 
 /**
- * GET /api/dashboard/activity
- * Returns recent activity log for workspace
+ * GET /api/dashboard/activity-log
+ * Returns activity log for workspace
  */
-router.get('/activity', async (req, res) => {
+router.get('/activity-log', async (req, res) => {
     try {
-        const { workspaceId, limit = 20 } = req.query;
+        const { workspaceId, limit = 50 } = req.query;
 
         if (!workspaceId) {
             return res.status(400).json({ error: 'workspaceId is required' });
         }
 
-        // Get activity logs
-        const { data: activities } = await supabase
+        // Get activity logs from the dedicated table
+        const { data: activities, error } = await supabase
             .from('activity_logs')
             .select('*')
             .eq('workspace_id', workspaceId)
             .order('created_at', { ascending: false })
             .limit(Number(limit));
 
-        // Also get recent schema versions as activity
-        const { data: projects } = await supabase
-            .from('projects')
-            .select('id, name')
-            .eq('workspace_id', workspaceId);
+        if (error) throw error;
 
-        const projectIds = projects?.map(p => p.id) || [];
-        const projectMap = new Map(projects?.map(p => [p.id, p.name]) || []);
+        // Transform for frontend consumption
+        const formattedActivities = (activities || []).map(log => {
+            // Convert raw action types to human readable strings
+            let actionDescription = log.action_type
+                .replace(/_/g, ' ')
+                .replace('schema version added', 'added a new schema version')
+                .replace('schema deleted', 'deleted a schema')
+                .replace('schema review generated', 'generated a schema review')
+                .replace('onboarding guide generated', 'generated an onboarding guide')
+                .replace('team member invited', 'invited a team member')
+                .replace('team member joined', 'joined the team')
+                .replace('team member removed', 'removed a team member')
+                .replace('team role changed', 'changed a team member role')
+                .replace('ai question asked', 'asked an AI question')
+                .replace('ai schema review run', 'ran a schema review') // Duplicate of generated?
+                .replace('profile updated', 'updated their profile');
 
-        let recentVersions: any[] = [];
-        if (projectIds.length > 0) {
-            const { data: versions } = await supabase
-                .from('schema_versions')
-                .select('id, project_id, version, created_at')
-                .in('project_id', projectIds)
-                .order('created_at', { ascending: false })
-                .limit(10);
+            // Add entity info if available
+            if (log.entity_name) {
+                if (log.action_type === 'schema_version_added') {
+                    actionDescription += ` (${log.entity_name})`;
+                } else if (log.action_type === 'ai_question_asked') {
+                    // Keep it cleaner? "asked an AI question" is often enough, maybe adding about what?
+                    // No, keep it simple as per spec "Plain language".
+                } else if (log.entity_type === 'team') {
+                    // "invited a team member" -> "invited [email]" (if in metadata)
+                    // The entity_name might store the email or ID.
+                    // Spec says: "Amit invited john@example.com to the workspace"
+                }
+            }
 
-            recentVersions = (versions || []).map(v => ({
-                id: `sv-${v.id}`,
-                action: 'schema_version_created',
-                entity_type: 'schema',
-                entity_id: v.project_id,
-                metadata: {
-                    version: v.version,
-                    project_name: projectMap.get(v.project_id) || 'Unknown Project'
+            // Refine specific complex sentences based on metadata
+            if (log.action_type === 'team_member_invited' && log.metadata?.email) {
+                // We might not have email in metadata if not logged correctly earlier.
+                // Assuming entity_name might hold it or metadata.
+            }
+
+            return {
+                id: log.id,
+                actor: {
+                    name: log.actor_name,
+                    role: log.actor_role
                 },
-                created_at: v.created_at
-            }));
-        }
+                action_type: log.action_type,
+                description: actionDescription, // Frontend can use this or reconstruct
+                entity: {
+                    type: log.entity_type,
+                    name: log.entity_name
+                },
+                metadata: log.metadata,
+                timestamp: log.created_at
+            };
+        });
 
-        // Merge and sort activities
-        const allActivities = [...(activities || []), ...recentVersions]
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .slice(0, Number(limit));
-
-        res.json({ activities: allActivities });
+        res.json({ activities: formattedActivities });
     } catch (err: any) {
         console.error('[Dashboard Activity] Error:', err);
         res.status(500).json({ error: err.message });
@@ -760,11 +781,11 @@ router.patch('/profile', async (req, res) => {
 
         if (updatedFields.length > 0 && workspaceId) {
             try {
-                await supabase.from('activity_logs').insert({
-                    workspace_id: workspaceId,
-                    user_id: userId,
-                    action: 'profile_updated',
-                    entity_type: 'profile',
+                await logActivity({
+                    workspaceId,
+                    userId,
+                    actionType: 'profile_updated',
+                    entityType: 'profile',
                     metadata: {
                         fields: updatedFields,
                         timestamp: new Date().toISOString()

@@ -161,7 +161,15 @@ export function AutoDocs() {
 
                             <div className="p-12 prose prose-indigo max-w-none">
                                 {view === 'preview' ? (
-                                    <ReactMarkdown>{doc.markdown}</ReactMarkdown>
+                                    <ReactMarkdown
+                                        components={{
+                                            h1: ({ ...props }) => <h1 className="text-3xl font-black text-gray-900 mb-6 mt-8" {...props} />,
+                                            h2: ({ ...props }) => <h2 className="text-2xl font-bold text-gray-800 mb-4 mt-8 pb-2 border-b border-gray-100" {...props} />,
+                                            h3: ({ ...props }) => <h3 className="text-xl font-bold text-gray-800 mb-3 mt-6" {...props} />,
+                                        }}
+                                    >
+                                        {doc.markdown}
+                                    </ReactMarkdown>
                                 ) : (
                                     <pre className="bg-gray-900 text-indigo-300 p-8 rounded-3xl overflow-x-auto text-xs font-mono leading-relaxed">
                                         {doc.markdown}
