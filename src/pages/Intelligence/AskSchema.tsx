@@ -19,7 +19,394 @@ interface Message {
     evidence?: AIEvidence;
 }
 
+<<<<<<< Updated upstream
+=======
+// ═══════════════════════════════════════════════════════════════════════════
+// RISK BADGE COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+const RiskBadge = ({ level, reason }: { level: ImpactAndRisk['risk_level']; reason: string }) => {
+    const config = {
+        none: {
+            bg: 'bg-slate-50',
+            border: 'border-slate-200',
+            text: 'text-slate-600',
+            icon: CheckCircle2,
+            label: 'No Risk',
+            glow: ''
+        },
+        low: {
+            bg: 'bg-emerald-50',
+            border: 'border-emerald-200',
+            text: 'text-emerald-700',
+            icon: Info,
+            label: 'Low Risk',
+            glow: ''
+        },
+        medium: {
+            bg: 'bg-amber-50',
+            border: 'border-amber-200',
+            text: 'text-amber-700',
+            icon: AlertTriangle,
+            label: 'Medium Risk',
+            glow: 'shadow-amber-100'
+        },
+        high: {
+            bg: 'bg-red-50',
+            border: 'border-red-200',
+            text: 'text-red-700',
+            icon: XCircle,
+            label: 'High Risk',
+            glow: 'shadow-red-100 shadow-lg'
+        }
+    };
+
+    const { bg, border, text, icon: Icon, label, glow } = config[level];
+
+    return (
+        <div className={`${bg} ${border} ${glow} border rounded-xl p-4`}>
+            <div className="flex items-center gap-2 mb-2">
+                <Icon className={`h-4 w-4 ${text}`} />
+                <span className={`text-xs font-bold uppercase tracking-wider ${text}`}>{label}</span>
+            </div>
+            <p className={`text-xs ${text} opacity-80 leading-relaxed`}>{reason}</p>
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUESTION INTERPRETATION COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+const QuestionInterpretationPanel = ({ interpretation }: { interpretation: QuestionInterpretation }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const intentLabels: Record<string, { label: string; color: string }> = {
+        impact_analysis: { label: 'Impact Analysis', color: 'bg-orange-100 text-orange-700' },
+        dependency_query: { label: 'Dependency Query', color: 'bg-purple-100 text-purple-700' },
+        structure_query: { label: 'Structure Query', color: 'bg-blue-100 text-blue-700' },
+        relationship_query: { label: 'Relationship Query', color: 'bg-indigo-100 text-indigo-700' },
+        risk_assessment: { label: 'Risk Assessment', color: 'bg-red-100 text-red-700' },
+        general_query: { label: 'General Query', color: 'bg-slate-100 text-slate-700' }
+    };
+
+    const operationLabels: Record<string, { label: string; color: string }> = {
+        destructive_change: { label: 'Destructive', color: 'bg-red-100 text-red-700' },
+        modification: { label: 'Modification', color: 'bg-amber-100 text-amber-700' },
+        read_only: { label: 'Read Only', color: 'bg-emerald-100 text-emerald-700' },
+        unknown: { label: 'Unknown', color: 'bg-slate-100 text-slate-700' }
+    };
+
+    const intent = intentLabels[interpretation.intent] || intentLabels.general_query;
+    const operation = operationLabels[interpretation.operation_type] || operationLabels.unknown;
+
+    return (
+        <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl overflow-hidden">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-indigo-100/50 transition-colors"
+            >
+                <div className="flex items-center gap-3">
+                    <Target className="h-4 w-4 text-indigo-500" />
+                    <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">
+                        How Your Question Was Understood
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${intent.color}`}>
+                        {intent.label}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${operation.color}`}>
+                        {operation.label}
+                    </span>
+                    {isOpen ? (
+                        <ChevronUp className="h-4 w-4 text-indigo-400" />
+                    ) : (
+                        <ChevronDown className="h-4 w-4 text-indigo-400" />
+                    )}
+                </div>
+            </button>
+
+            {isOpen && (
+                <div className="p-4 bg-white border-t border-indigo-100 space-y-3">
+                    {interpretation.target_entities.length > 0 && (
+                        <div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Target Entities</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                                {interpretation.target_entities.map(entity => (
+                                    <span key={entity} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-mono font-bold">
+                                        {entity}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Interpretation</span>
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                            {interpretation.why_this_interpretation}
+                        </p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCHEMA EVIDENCE COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SchemaEvidencePanel = ({ evidence, navigate, projectId }: {
+    evidence: SchemaEvidence;
+    navigate: ReturnType<typeof useNavigate>;
+    projectId: string | null | undefined;
+}) => (
+    <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 space-y-4">
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <Database className="h-3.5 w-3.5 text-indigo-500" />
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Schema Evidence</span>
+            </div>
+            <span className="text-[9px] font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded font-bold">
+                v{evidence.schema_version}
+            </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Tables */}
+            <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 opacity-60">
+                    <Table className="h-3 w-3" />
+                    <span className="text-[10px] font-bold text-slate-900 uppercase">
+                        Tables ({evidence.tables_involved.length})
+                    </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                    {evidence.tables_involved.length > 0 ? evidence.tables_involved.map(t => (
+                        <button
+                            key={t}
+                            onClick={() => projectId && navigate(`/workspace/${projectId}/explorer`)}
+                            className="px-2 py-0.5 bg-white hover:bg-indigo-50 hover:text-indigo-600 rounded text-[10px] font-mono border border-slate-200 transition-colors font-medium"
+                        >
+                            {t}
+                        </button>
+                    )) : (
+                        <span className="text-[10px] text-slate-400 italic">None referenced</span>
+                    )}
+                </div>
+            </div>
+
+            {/* Columns */}
+            <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 opacity-60">
+                    <ShieldCheck className="h-3 w-3" />
+                    <span className="text-[10px] font-bold text-slate-900 uppercase">
+                        Columns ({evidence.columns_involved.length})
+                    </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                    {evidence.columns_involved.length > 0 ? evidence.columns_involved.map(c => (
+                        <span key={c} className="px-2 py-0.5 bg-white border border-slate-100 rounded text-[9px] font-mono text-slate-600">
+                            {c}
+                        </span>
+                    )) : (
+                        <span className="text-[10px] text-slate-400 italic">None referenced</span>
+                    )}
+                </div>
+            </div>
+
+            {/* Relationships */}
+            {evidence.relationships_used.length > 0 && (
+                <div className="col-span-full space-y-1.5">
+                    <div className="flex items-center gap-1.5 opacity-60">
+                        <Link className="h-3 w-3" />
+                        <span className="text-[10px] font-bold text-slate-900 uppercase">
+                            Relationships ({evidence.relationships_used.length})
+                        </span>
+                    </div>
+                    <div className="space-y-1">
+                        {evidence.relationships_used.map((r, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[10px] font-mono text-slate-600 bg-white p-2 rounded border border-dashed border-slate-200">
+                                <span className="text-indigo-600 font-bold">{r.from}</span>
+                                <ArrowRight className="h-3 w-3 text-slate-400" />
+                                <span className="text-purple-600 font-bold">{r.to}</span>
+                                <span className="ml-auto text-[9px] text-slate-400 uppercase">{r.type}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+
+        <p className="text-[9px] text-slate-400 italic mt-2">
+            If it's not listed here → it was not used in the analysis.
+        </p>
+    </div>
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPACT SCOPE COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ImpactScopeList = ({ impacts }: { impacts: string[] }) => {
+    if (impacts.length === 0) return null;
+
+    return (
+        <div className="flex flex-wrap gap-1 mt-2">
+            {impacts.map((impact, i) => (
+                <span
+                    key={i}
+                    className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[9px] font-medium text-slate-600"
+                >
+                    {impact.replace(/_/g, ' ')}
+                </span>
+            ))}
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REASONING TRACE COMPONENT (COLLAPSIBLE)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ReasoningTrace = ({ steps }: { steps: string[] }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <div className="border border-purple-100 rounded-xl overflow-hidden">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-purple-50/50 hover:bg-purple-100/50 transition-colors"
+            >
+                <div className="flex items-center gap-2">
+                    <Zap className="h-3.5 w-3.5 text-purple-500" />
+                    <span className="text-[10px] font-bold text-purple-700 uppercase tracking-widest">
+                        Reasoning Trace
+                    </span>
+                    <span className="text-[9px] text-purple-400">({steps.length} steps)</span>
+                </div>
+                {isOpen ? (
+                    <ChevronUp className="h-4 w-4 text-purple-400" />
+                ) : (
+                    <ChevronDown className="h-4 w-4 text-purple-400" />
+                )}
+            </button>
+
+            {isOpen && (
+                <div className="p-4 bg-white border-t border-purple-100">
+                    <ol className="space-y-2">
+                        {steps.map((step, i) => (
+                            <li key={i} className="flex items-start gap-3">
+                                <span className="flex-shrink-0 w-5 h-5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-[10px] font-bold">
+                                    {i + 1}
+                                </span>
+                                <span className="text-xs text-slate-600 leading-relaxed">{step}</span>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIDENCE & LIMITS COMPONENT (MUTED, HONEST)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ConfidenceLimits = ({ data }: { data: ConfidenceAndLimits }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const confidenceConfig = {
+        high: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'High Confidence' },
+        medium: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Medium Confidence' },
+        low: { bg: 'bg-red-50', text: 'text-red-700', label: 'Low Confidence' }
+    };
+
+    const conf = confidenceConfig[data.confidence];
+
+    return (
+        <div className="border border-slate-100 rounded-xl overflow-hidden">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-slate-50/50 hover:bg-slate-100/50 transition-colors"
+            >
+                <div className="flex items-center gap-2">
+                    <HelpCircle className="h-3.5 w-3.5 text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                        Confidence & Limits
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${conf.bg} ${conf.text}`}>
+                        {conf.label}
+                    </span>
+                    {isOpen ? (
+                        <ChevronUp className="h-4 w-4 text-slate-400" />
+                    ) : (
+                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                    )}
+                </div>
+            </button>
+
+            {isOpen && (
+                <div className="p-4 bg-white border-t border-slate-100 space-y-4">
+                    {/* What is known */}
+                    <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                            <Eye className="h-3 w-3 text-emerald-500" />
+                            <span className="text-[10px] font-bold text-slate-600 uppercase">What Is Known</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {data.what_is_known.length > 0 ? data.what_is_known.map((item, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[9px] font-medium">
+                                    {item}
+                                </span>
+                            )) : (
+                                <span className="text-[10px] text-slate-400 italic">No specific knowledge claims</span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* What is NOT known */}
+                    <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                            <EyeOff className="h-3 w-3 text-slate-400" />
+                            <span className="text-[10px] font-bold text-slate-600 uppercase">What Is NOT Known</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {data.what_is_not_known.length > 0 ? data.what_is_not_known.map((item, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-medium">
+                                    {item}
+                                </span>
+                            )) : (
+                                <span className="text-[10px] text-slate-400 italic">No specific limitations</span>
+                            )}
+                        </div>
+                    </div>
+
+                    <p className="text-[9px] text-slate-400 italic border-t border-slate-100 pt-3">
+                        This explicitly states what the schema can tell you — and what it cannot.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { useAuth } from '../../context/AuthContext';
+// ... imports
+
+// ... components
+
+>>>>>>> Stashed changes
 export default function AskSchema() {
+    const { user } = useAuth();
     const { projectId } = useProject();
     const navigate = useNavigate();
     const [messages, setMessages] = useState<Message[]>([]);
@@ -52,7 +439,7 @@ export default function AskSchema() {
         setError(null);
 
         try {
-            const data = await api.askSchema(projectId, userMsg.text);
+            const data = await api.askSchema(projectId, userMsg.text, user?.id);
 
             const botMsg: Message = {
                 id: (Date.now() + 1).toString(),

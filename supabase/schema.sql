@@ -255,10 +255,12 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id),
-  action TEXT NOT NULL,
+  action_type TEXT NOT NULL,
+  actor_name TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
   entity_type TEXT, -- 'project', 'schema', 'docs', 'team', 'billing'
-  entity_id UUID,
-  metadata JSONB DEFAULT '{}',
+  entity_name TEXT,
+  metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

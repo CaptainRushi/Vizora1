@@ -33,6 +33,7 @@ import {
     getAiAccessLevel,
     upgradeWorkspace
 } from './billing.js';
+import { logActivity } from './src/services/activityLogger.js';
 
 dotenv.config();
 
@@ -1252,7 +1253,7 @@ app.delete('/projects/:id', async (req, res) => {
 app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
     try {
         const id = req.params.id as string;
-        const { raw_schema } = req.body;
+        const { raw_schema, user_id } = req.body;
 
         if (!raw_schema || typeof raw_schema !== 'string') {
             return res.status(400).json({ error: "raw_schema is required" });
@@ -1287,7 +1288,7 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
         // Get project schema type to determine which parser to use
         const { data: project, error: projectErr } = await supabase
             .from('projects')
-            .select('schema_type')
+            .select('workspace_id, owner_id, schema_type, name, project_settings(*)')
             .eq('id', id)
             .single();
 
@@ -1408,6 +1409,17 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
         if (ownerId) await trackBetaUsage(ownerId as string, 'version');
 
         console.log(`[Schema Ingestion] Success! Version ${nextVersion} created`);
+
+        if (user_id && workspaceId) {
+            await logActivity({
+                workspaceId,
+                userId: user_id,
+                actionType: 'schema_version_added',
+                entityType: 'schema',
+                entityName: `v${nextVersion}`,
+                metadata: { project_name: project.name }
+            });
+        }
 
         res.json({
             success: true,
@@ -1727,6 +1739,22 @@ app.put('/projects/:id/normalized-schema', requireProjectContext, async (req, re
         });
 
         if (error) throw error;
+
+        // Log Activity
+        if (req.body.user_id) {
+            const { data: proj } = await supabase.from('projects').select('workspace_id, name').eq('id', id).single();
+            if (proj) {
+                await logActivity({
+                    workspaceId: proj.workspace_id,
+                    userId: req.body.user_id,
+                    actionType: 'schema_version_added',
+                    entityType: 'schema',
+                    entityName: `v${nextVersion}`,
+                    metadata: { project_name: proj.name }
+                });
+            }
+        }
+
         res.json({ success: true, version: nextVersion });
     } catch (err: any) {
         res.status(500).json({ error: err.message });

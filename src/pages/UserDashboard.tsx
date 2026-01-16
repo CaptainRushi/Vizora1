@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import {
     User,
     CreditCard,
@@ -98,11 +99,12 @@ interface TeamData {
 
 interface ActivityItem {
     id: string;
-    action: string;
-    entity_type: string;
-    entity_id?: string;
+    actor: { name: string; role: string };
+    action_type: string;
+    description: string;
+    entity: { type: string; name: string };
     metadata: Record<string, any>;
-    created_at: string;
+    timestamp: string;
 }
 
 interface Invite {
@@ -522,36 +524,11 @@ export function UserDashboard() {
     };
 
     const fetchActivity = async (workspaceId: string) => {
-        // Get recent schema versions as activity
-        const { data: projects } = await supabase
-            .from('projects')
-            .select('id, name')
-            .eq('workspace_id', workspaceId);
-
-        const projectIds = projects?.map(p => p.id) || [];
-        const projectMap = new Map(projects?.map(p => [p.id, p.name]) || []);
-
-        if (projectIds.length > 0) {
-            const { data: versions } = await supabase
-                .from('schema_versions')
-                .select('id, project_id, version, created_at')
-                .in('project_id', projectIds)
-                .order('created_at', { ascending: false })
-                .limit(10);
-
-            const activities: ActivityItem[] = (versions || []).map(v => ({
-                id: `sv-${v.id}`,
-                action: 'schema_version_created',
-                entity_type: 'schema',
-                entity_id: v.project_id,
-                metadata: {
-                    version: v.version,
-                    project_name: projectMap.get(v.project_id) || 'Unknown Project'
-                },
-                created_at: v.created_at
-            }));
-
-            setActivity(activities);
+        try {
+            const { activities } = await api.dashboard.getActivityLog(workspaceId, 20);
+            setActivity(activities || []);
+        } catch (err) {
+            console.error('Failed to fetch activity log', err);
         }
     };
 
@@ -616,22 +593,7 @@ export function UserDashboard() {
         }
     };
 
-    const getActivityDescription = (item: ActivityItem): string => {
-        switch (item.action) {
-            case 'schema_version_created':
-                return `Schema v${item.metadata.version} added to ${item.metadata.project_name}`;
-            case 'invite_created':
-                return `Invite link created for ${item.metadata.role} role`;
-            case 'member_removed':
-                return `Team member was removed`;
-            case 'member_role_changed':
-                return `Member role changed to ${item.metadata.new_role}`;
-            case 'profile_updated':
-                return `Profile updated: ${item.metadata.fields?.join(', ') || 'details changed'}`;
-            default:
-                return item.action.replace(/_/g, ' ');
-        }
-    };
+
 
     const getInitials = () => {
         const name = identity?.user.username || user?.user_metadata?.full_name || user?.email || 'U';
@@ -1145,32 +1107,43 @@ export function UserDashboard() {
                             <p className="text-sm">Your schema changes and actions will appear here</p>
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {activity.slice(0, 8).map(item => (
+                        <div className="space-y-4">
+                            {activity.slice(0, 15).map(item => (
                                 <div
                                     key={item.id}
-                                    className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                                    className="flex items-start gap-4 p-4 bg-white border border-gray-100 rounded-2xl hover:border-indigo-100 hover:shadow-sm transition-all"
                                 >
-                                    <div className={`p-2 rounded-lg ${item.entity_type === 'schema'
-                                        ? 'bg-indigo-100 text-indigo-600'
-                                        : item.entity_type === 'team'
-                                            ? 'bg-purple-100 text-purple-600'
-                                            : 'bg-gray-200 text-gray-600'
+                                    {/* Icon Badge */}
+                                    <div className={`p-2.5 rounded-xl shrink-0 ${item.entity.type === 'schema'
+                                        ? 'bg-blue-50 text-blue-600'
+                                        : item.entity.type === 'team'
+                                            ? 'bg-indigo-50 text-indigo-600'
+                                            : item.entity.type === 'ai'
+                                                ? 'bg-purple-50 text-purple-600'
+                                                : 'bg-gray-100 text-gray-500'
                                         }`}>
-                                        {item.entity_type === 'schema' ? (
+                                        {item.entity.type === 'schema' ? (
                                             <GitBranch className="w-4 h-4" />
-                                        ) : item.entity_type === 'team' ? (
+                                        ) : item.entity.type === 'team' ? (
                                             <UsersIcon className="w-4 h-4" />
+                                        ) : item.entity.type === 'ai' ? (
+                                            <Sparkles className="w-4 h-4" />
                                         ) : (
                                             <Activity className="w-4 h-4" />
                                         )}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900">
-                                            {getActivityDescription(item)}
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0 pt-1">
+                                        <p className="text-sm text-gray-900 leading-relaxed">
+                                            <span className="font-bold text-gray-800">{item.actor.name || 'User'}</span>
+                                            <span className="text-gray-600 px-1">{item.description}</span>
+                                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded ml-1 uppercase tracking-wide">
+                                                {item.actor.role}
+                                            </span>
                                         </p>
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                            {new Date(item.created_at).toLocaleDateString('en-US', {
+                                        <p className="text-xs text-gray-400 mt-1 font-medium flex items-center gap-1">
+                                            {new Date(item.timestamp).toLocaleDateString('en-US', {
                                                 month: 'short',
                                                 day: 'numeric',
                                                 hour: '2-digit',

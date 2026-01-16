@@ -635,13 +635,16 @@ export function parseDrizzle(drizzle: string): ParsingResult {
                         const isUnique = trimmed.includes('.unique()');
                         const notNull = trimmed.includes('.notNull()');
 
-                        if (currentTable && colName && result.schema.tables[currentTable]) {
-                            result.schema.tables[currentTable].columns[colName] = {
-                                type: sqlType,
-                                nullable: !notNull && !isPk,
-                                primary: isPk,
-                                unique: isUnique
-                            };
+                        if (currentTable && colName) {
+                            const table = result.schema.tables[currentTable];
+                            if (table) {
+                                table.columns[colName] = {
+                                    type: sqlType,
+                                    nullable: !notNull && !isPk,
+                                    primary: isPk,
+                                    unique: isUnique
+                                };
+                            }
                         }
                     }
                 } else {

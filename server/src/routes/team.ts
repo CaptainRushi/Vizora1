@@ -13,6 +13,7 @@
 import express from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { logActivity } from '../services/activityLogger.js';
 
 const router = express.Router();
 
@@ -77,20 +78,7 @@ async function isAdminOf(userId: string, workspaceId: string): Promise<boolean> 
     return member?.role === 'admin';
 }
 
-// Helper: Log activity
-async function logActivity(
-    workspaceId: string,
-    userId: string | null,
-    action: string,
-    metadata: Record<string, any> = {}
-) {
-    await supabase.from('activity_logs').insert({
-        workspace_id: workspaceId,
-        user_id: userId,
-        action,
-        metadata
-    });
-}
+
 
 /**
  * POST /api/team/invite-link
@@ -161,10 +149,16 @@ router.post('/invite-link', async (req, res) => {
         if (insertError) throw insertError;
 
         // Log activity
-        await logActivity(workspace_id, userId, 'invite_link_created', {
-            role,
-            expires_in_days,
-            invite_id: invite.id
+        await logActivity({
+            workspaceId: workspace_id,
+            userId,
+            actionType: 'invite_link_created',
+            entityType: 'team',
+            metadata: {
+                role,
+                expires_in_days,
+                invite_id: invite.id
+            }
         });
 
         // Construct join URL
@@ -238,8 +232,14 @@ router.post('/invite-link/revoke', async (req, res) => {
         if (updateError) throw updateError;
 
         // Log activity
-        await logActivity(workspace_id, userId, 'invite_link_revoked', {
-            invite_id: invite_id || 'all'
+        await logActivity({
+            workspaceId: workspace_id,
+            userId,
+            actionType: 'invite_link_revoked',
+            entityType: 'team',
+            metadata: {
+                invite_id: invite_id || 'all'
+            }
         });
 
         res.json({
@@ -458,9 +458,15 @@ router.post('/join', rateLimit(10, 60000), async (req, res) => {
             .eq('id', invite.id);
 
         // Log activity
-        await logActivity(invite.workspace_id, userId, 'team_member_joined', {
-            role: invite.role,
-            invite_id: invite.id
+        await logActivity({
+            workspaceId: invite.workspace_id,
+            userId,
+            actionType: 'team_member_joined',
+            entityType: 'team',
+            metadata: {
+                role: invite.role,
+                invite_id: invite.id
+            }
         });
 
         res.json({

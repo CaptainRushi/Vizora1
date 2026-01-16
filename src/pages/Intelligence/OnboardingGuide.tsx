@@ -4,7 +4,10 @@ import { api } from '../../lib/api';
 import { BookOpen, RefreshCw, Copy, Check, Download, Brain, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
+import { useAuth } from '../../context/AuthContext';
+
 export default function OnboardingGuide() {
+    const { user } = useAuth();
     const { projectId } = useProject();
     const [loading, setLoading] = useState(true);
     const [content, setContent] = useState<string | null>(null);
@@ -16,8 +19,17 @@ export default function OnboardingGuide() {
         setLoading(true);
         setError(null);
         try {
+<<<<<<< Updated upstream
             const data = await api.getOnboardingGuide(projectId, force);
             setContent(data.content);
+=======
+            const data = await api.getOnboardingGuide(projectId, force, user?.id);
+            if (data.state === 'empty') {
+                setIsEmpty(true);
+            } else {
+                setContent(data.content);
+            }
+>>>>>>> Stashed changes
         } catch (err: any) {
             setError(err.message);
         } finally {
