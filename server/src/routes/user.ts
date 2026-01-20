@@ -105,6 +105,59 @@ router.get('/me', async (req, res) => {
             });
         }
 
+        // If user exists but has no workspace, create one for them
+        if (!user.workspace_id) {
+            console.log('[API ME] User exists but has no workspace, creating one...');
+            try {
+                // Create a personal workspace
+                const { data: newWorkspace, error: wsError } = await supabase
+                    .from('workspaces')
+                    .insert({
+                        name: user.username ? `${user.username}'s Workspace` : 'Personal Workspace',
+                        type: 'personal',
+                        owner_id: user.id
+                    })
+                    .select()
+                    .single();
+
+                if (wsError) {
+                    console.error('[API ME] Failed to create workspace:', wsError);
+                } else if (newWorkspace) {
+                    // Update user with the new workspace_id
+                    const { error: updateError } = await supabase
+                        .from('users')
+                        .update({ workspace_id: newWorkspace.id, role: 'admin' })
+                        .eq('id', user.id);
+
+                    if (!updateError) {
+                        user.workspace_id = newWorkspace.id;
+                        user.role = 'admin';
+                        console.log('[API ME] Created workspace:', newWorkspace.id);
+
+                        // Create workspace_billing entry
+                        await supabase
+                            .from('workspace_billing')
+                            .insert({ workspace_id: newWorkspace.id, plan_id: 'free', start_at: new Date().toISOString() })
+                            .select();
+
+                        // Create workspace_usage entry
+                        await supabase
+                            .from('workspace_usage')
+                            .insert({ workspace_id: newWorkspace.id })
+                            .select();
+
+                        // Add user as admin member
+                        await supabase
+                            .from('workspace_members')
+                            .insert({ workspace_id: newWorkspace.id, user_id: user.id, role: 'admin' })
+                            .select();
+                    }
+                }
+            } catch (wsErr) {
+                console.error('[API ME] Workspace creation failed:', wsErr);
+            }
+        }
+
         // Return user data in the canonical format
         res.json({
             id: user.id,
