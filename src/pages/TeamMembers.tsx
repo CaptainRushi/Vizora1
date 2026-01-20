@@ -58,7 +58,7 @@ export function TeamMembers() {
             await api.projectSettings.removeMember(projectId!, userId);
             toast.success("Member removed");
             loadMembers();
-        } catch (err: any)g
+        } catch (err: any) {
             toast.error(err.response?.data?.error || "Failed to remove member");
         }
     };
