@@ -12,6 +12,7 @@ import {
     FileText,
     Calendar,
     Plus,
+    UserPlus,
     Trash2,
     Copy,
     Ban,
@@ -24,12 +25,15 @@ import {
     Bug,
     Lightbulb,
     Headphones,
-    Pencil
+    Pencil,
+    ChevronDown,
+    Search
 } from 'lucide-react';
 import { InviteModal } from '../components/dashboard/InviteModal';
 import { DeleteAccountModal } from '../components/dashboard/DeleteAccountModal';
-import { EditProfileDrawer } from '../components/dashboard/EditProfileDrawer';
+import { EditProfileModal } from '../components/dashboard/EditProfileModal';
 import { LoadingSection } from '../components/LoadingSection';
+import { toast } from 'react-hot-toast';
 
 // ============================
 // TYPES
@@ -38,7 +42,7 @@ interface IdentityData {
     user: {
         id: string;
         username: string | null;
-        role_title: string | null;
+        display_name: string | null;
         created_at: string;
     };
     workspace: {
@@ -64,7 +68,9 @@ interface TeamMember {
     id: string;
     user_id: string;
     username: string | null;
-    role: 'admin' | 'member' | 'editor' | 'viewer';
+    display_name: string | null;
+    email?: string | null;
+    role: 'admin' | 'member';
     joined_at: string | null;
     is_owner: boolean;
 }
@@ -76,7 +82,7 @@ interface TeamData {
 
 interface ActivityItem {
     id: string;
-    actor: { name: string; role: string };
+    actor: { id: string; name: string; role: string };
     action_type: string;
     description: string;
     entity: { type: string; name: string };
@@ -115,73 +121,26 @@ function StatCard({ icon: Icon, label, value, subtext }: {
     );
 }
 
-function EditableText({ value, onSave, placeholder, className }: {
-    value: string;
-    onSave: (val: string) => Promise<void>;
-    placeholder?: string;
-    className?: string;
-}) {
-    const [isEditing, setIsEditing] = useState(false);
-    const [localValue, setLocalValue] = useState(value);
-    const [saving, setSaving] = useState(false);
-
-    const handleSave = async () => {
-        if (localValue !== value) {
-            setSaving(true);
-            try {
-                await onSave(localValue);
-            } finally {
-                setSaving(false);
-            }
-        }
-        setIsEditing(false);
-    };
-
-    if (isEditing) {
-        return (
-            <div className="flex items-center gap-2">
-                <input
-                    type="text"
-                    value={localValue}
-                    onChange={(e) => setLocalValue(e.target.value)}
-                    onBlur={handleSave}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                    autoFocus
-                    className={`border border-indigo-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${className}`}
-                    placeholder={placeholder}
-                />
-                {saving && <div className="animate-spin w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full" />}
-            </div>
-        );
-    }
-
-    return (
-        <button
-            onClick={() => setIsEditing(true)}
-            className={`text-left hover:bg-gray-50 px-2 py-1 -mx-2 rounded-lg transition-colors cursor-pointer ${className}`}
-            title="Click to edit"
-        >
-            {value || <span className="text-gray-400">{placeholder || 'Click to set'}</span>}
-        </button>
-    );
-}
-
 // ============================
 // MAIN COMPONENT
 // ============================
 export function UserDashboard() {
-    const { user } = useAuth();
+    const { user, refreshIdentity } = useAuth();
 
     // State
     const [identity, setIdentity] = useState<IdentityData | null>(null);
     const [usage, setUsage] = useState<UsageData | null>(null);
     const [team, setTeam] = useState<TeamData | null>(null);
-    const [activity, setActivity] = useState<ActivityItem[]>([]);
     const [invites, setInvites] = useState<Invite[]>([]);
     const [loading, setLoading] = useState(true);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
+    const [memberSearchTerm, setMemberSearchTerm] = useState('');
+    const [showSetupModal, setShowSetupModal] = useState(false);
+    const [setupUsername, setSetupUsername] = useState('');
+    const [setupError, setSetupError] = useState<string | null>(null);
+    const [isSettingUp, setIsSettingUp] = useState(false);
 
     // ============================
     // DATA FETCHING
@@ -191,57 +150,75 @@ export function UserDashboard() {
 
         setLoading(true);
         try {
-            // Fetch workspace first (existing logic for reliability)
-            let workspaceId: string | null = null;
+            // 1. Fetch Authoritative Identity
+            const identityData = await api.user.getMe(user.id);
 
-            // Try to get owned workspace
-            let { data: wsData } = await supabase
-                .from('workspaces')
-                .select('*')
-                .eq('owner_id', user.id)
-                .maybeSingle();
+            // 2. Fetch workspace first (existing logic for reliability)
+            let workspaceId: string | null = identityData.workspace_id;
+            let wsData = null;
 
-            let userRole: 'admin' | 'member' = 'admin';
+            // 3. Robust Workspace Resolution Sequence
+            // A. Check assigned workspace
+            if (workspaceId) {
+                const { data: w } = await supabase
+                    .from('workspaces')
+                    .select('*')
+                    .eq('id', workspaceId)
+                    .maybeSingle();
+                wsData = w;
+            }
 
-            // If not owner, check membership
+            // B. If not found, check OWNED workspaces
             if (!wsData) {
-                const { data: membership } = await supabase
+                const { data: ownedWs } = await supabase
+                    .from('workspaces')
+                    .select('*')
+                    .eq('owner_id', user.id)
+                    .order('created_at', { ascending: true }) // Stable choice (oldest)
+                    .limit(1)
+                    .maybeSingle();
+                wsData = ownedWs;
+            }
+
+            // C. If still not found, check MEMBER workspaces
+            if (!wsData) {
+                const { data: memberWs } = await supabase
                     .from('workspace_members')
-                    .select('workspace_id, role')
+                    .select('workspace_id, workspaces(*)')
                     .eq('user_id', user.id)
+                    .limit(1)
                     .maybeSingle();
 
-                if (membership) {
-                    const { data: w } = await supabase
-                        .from('workspaces')
-                        .select('*')
-                        .eq('id', membership.workspace_id)
-                        .single();
-                    if (w) {
-                        wsData = w;
-                        userRole = membership.role as 'admin' | 'member';
-                    }
+                if (memberWs?.workspaces) {
+                    wsData = memberWs.workspaces;
                 }
             }
 
-            // Create default workspace if none exists
+            // D. Workspace should exist from signup trigger
+            // If not found, log warning and attempt fresh fetch
             if (!wsData) {
-                const { data: newWs, error: cErr } = await supabase
-                    .from('workspaces')
-                    .insert({
-                        name: "Personal Workspace",
-                        type: "personal",
-                        owner_id: user.id
-                    })
-                    .select()
-                    .single();
-
-                if (cErr) throw cErr;
-                wsData = newWs;
-                userRole = 'admin';
+                console.warn('[Dashboard] No workspace found - this shouldnt happen with auto-creation');
+                const freshIdentity = await api.user.getMe(user.id);
+                if (freshIdentity?.workspace_id) {
+                    const { data: w } = await supabase
+                        .from('workspaces')
+                        .select('*')
+                        .eq('id', freshIdentity.workspace_id)
+                        .maybeSingle();
+                    wsData = w;
+                }
             }
 
             workspaceId = wsData?.id || null;
+
+            // 4. Sync Auth Identity if missing or changed
+            if (workspaceId && workspaceId !== identityData.workspace_id) {
+                console.log('[Dashboard] Syncing workspace link in user record...', workspaceId);
+                await supabase
+                    .from('users')
+                    .update({ workspace_id: workspaceId })
+                    .eq('id', user.id);
+            }
 
             // Get member count
             let memberCount = 1;
@@ -253,47 +230,34 @@ export function UserDashboard() {
                 memberCount = (count || 0) + 1;
             }
 
-            // Set identity data
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('username, role_title, created_at')
-                .eq('id', user.id)
-                .maybeSingle();
-
             setIdentity({
                 user: {
                     id: user.id,
-                    username: profile?.username || user.user_metadata?.full_name || null,
-                    role_title: profile?.role_title || null,
-                    created_at: profile?.created_at || user.created_at
+                    username: identityData.username,
+                    display_name: identityData.display_name,
+                    created_at: identityData.created_at
                 },
                 workspace: wsData ? {
                     id: wsData.id,
                     name: wsData.name,
-                    type: wsData.type,
+                    type: wsData.type as 'personal' | 'team',
                     created_at: wsData.created_at,
                     member_count: memberCount
                 } : null,
-                role: userRole
+                role: (identityData.role as 'admin' | 'member') || 'admin'
             });
 
             // Parallel fetch remaining data if we have workspace
             if (workspaceId) {
                 const [usageResult, teamResult, invitesResult] = await Promise.all([
-                    // Usage stats
                     fetchUsageStats(workspaceId),
-                    // Team members
                     fetchTeamData(workspaceId),
-                    // Active invites (admin only)
-                    userRole === 'admin' ? fetchInvites(workspaceId) : Promise.resolve([])
+                    (identityData.role === 'admin' || !identityData.role) ? fetchInvites(workspaceId) : Promise.resolve([])
                 ]);
 
                 setUsage(usageResult);
                 setTeam(teamResult);
                 setInvites(invitesResult);
-
-                // Fetch activity
-                fetchActivity(workspaceId);
             }
 
         } catch (error) {
@@ -369,16 +333,17 @@ export function UserDashboard() {
         const allUserIds = [workspace?.owner_id, ...memberIds].filter(Boolean);
 
         const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, username')
+            .from('users')
+            .select('id, username, display_name')
             .in('id', allUserIds);
 
-        const memberList = (members || []).map(m => {
+        const memberList: TeamMember[] = (members || []).map(m => {
             const profile = profiles?.find(p => p.id === m.user_id);
             return {
                 id: m.id,
                 user_id: m.user_id,
                 username: profile?.username || null,
+                display_name: (profile as any)?.display_name || null,
                 role: m.role as TeamMember['role'],
                 joined_at: m.created_at,
                 is_owner: m.user_id === workspace?.owner_id
@@ -392,6 +357,7 @@ export function UserDashboard() {
                 id: 'owner',
                 user_id: workspace.owner_id,
                 username: ownerProfile?.username || null,
+                display_name: (ownerProfile as any)?.display_name || null,
                 role: 'admin',
                 joined_at: null,
                 is_owner: true
@@ -416,38 +382,45 @@ export function UserDashboard() {
         return data || [];
     };
 
-    const fetchActivity = async (workspaceId: string) => {
-        try {
-            const { activities } = await api.dashboard.getActivityLog(workspaceId, 20);
-            setActivity(activities || []);
-        } catch (err) {
-            console.error('Failed to fetch activity log', err);
-        }
-    };
+
 
     useEffect(() => {
         fetchDashboardData();
     }, [fetchDashboardData]);
 
+    // Migration helper: Detect missing username
+    useEffect(() => {
+        if (identity && !identity.user.username && !loading) {
+            setShowSetupModal(true);
+        } else {
+            setShowSetupModal(false);
+        }
+    }, [identity, loading]);
+
+    const handleSetupUsername = async () => {
+        if (!setupUsername || setupUsername.length < 3) {
+            setSetupError('Username must be at least 3 characters');
+            return;
+        }
+
+        try {
+            setIsSettingUp(true);
+            setSetupError(null);
+            await api.user.updateUsername(user!.id, setupUsername.toLowerCase());
+            await refreshIdentity(user!.id);
+            await fetchDashboardData();
+            setShowSetupModal(false);
+            toast.success('Username set successfully!');
+        } catch (err: any) {
+            setSetupError(err.response?.data?.error || 'Failed to update username');
+        } finally {
+            setIsSettingUp(false);
+        }
+    };
+
     // ============================
     // ACTIONS
     // ============================
-    const handleUpdateUsername = async (newUsername: string) => {
-        if (!user) return;
-        await supabase
-            .from('profiles')
-            .upsert({ id: user.id, username: newUsername, updated_at: new Date().toISOString() });
-        fetchDashboardData();
-    };
-
-    const handleUpdateWorkspaceName = async (newName: string) => {
-        if (!identity?.workspace?.id) return;
-        await supabase
-            .from('workspaces')
-            .update({ name: newName, updated_at: new Date().toISOString() })
-            .eq('id', identity.workspace.id);
-        fetchDashboardData();
-    };
 
     const revokeInvite = async (inviteId: string) => {
         try {
@@ -463,10 +436,68 @@ export function UserDashboard() {
         }
     };
 
+    // ============================
+    // ROLE MANAGEMENT ACTIONS (ADMIN ONLY)
+    // ============================
+
+    /**
+     * Change a member's role (admin only)
+     * Rules:
+     * - Cannot change own role
+     * - Workspace must always have at least one admin
+     */
+    const handleChangeRole = async (memberId: string, newRole: 'admin' | 'member') => {
+        if (!user || !identity?.workspace?.id) return;
+
+        try {
+            const response = await api.dashboard.changeRole(
+                memberId,
+                newRole,
+                identity.workspace.id,
+                user.id
+            );
+
+            if (response.success) {
+                // Refresh team data
+                fetchDashboardData();
+            }
+        } catch (err: any) {
+            const errorMessage = err.response?.data?.message || err.message;
+            alert(errorMessage);
+        }
+    };
+
+    /**
+     * Remove a member from workspace (admin only)
+     * Cannot remove workspace owner
+     */
+    const handleRemoveMember = async (memberId: string, memberName: string | null) => {
+        if (!user || !identity?.workspace?.id) return;
+
+        const confirmMessage = `Are you sure you want to remove ${memberName || 'this member'} from the workspace?`;
+        if (!confirm(confirmMessage)) return;
+
+        try {
+            const response = await api.dashboard.removeMember(
+                memberId,
+                identity.workspace.id,
+                user.id
+            );
+
+            if (response.success) {
+                // Refresh team data
+                fetchDashboardData();
+            }
+        } catch (err: any) {
+            const errorMessage = err.response?.data?.message || err.message;
+            alert(errorMessage);
+        }
+    };
+
 
 
     const getInitials = () => {
-        const name = identity?.user.username || user?.user_metadata?.full_name || user?.email || 'U';
+        const name = identity?.user.username || identity?.user.display_name || user?.user_metadata?.full_name || user?.email || 'U';
         return name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
     };
 
@@ -503,68 +534,75 @@ export function UserDashboard() {
                             {/* Top Row: Username and Edit Button */}
                             <div className="flex items-start justify-between mb-1">
                                 <div className="flex-1">
-                                    {/* Username - Editable */}
-                                    <EditableText
-                                        value={identity?.user.username || ''}
-                                        onSave={handleUpdateUsername}
-                                        placeholder="Set your username"
-                                        className="text-3xl font-black text-gray-900 tracking-tight"
-                                    />
+                                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                                        {identity?.user.username ? `@${identity.user.username}` : 'Identity Not Set'}
+                                    </h2>
                                 </div>
                                 {/* Edit Profile Button */}
                                 <button
                                     onClick={() => setShowEditProfile(true)}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 rounded-xl transition-all"
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-xl transition-all active:scale-95"
                                 >
                                     <Pencil className="w-4 h-4" />
                                     Edit profile
                                 </button>
                             </div>
 
+                            {/* Display Name */}
+                            {identity?.user.display_name && (
+                                <p className="text-lg font-bold text-slate-500 mb-1">
+                                    {identity.user.display_name}
+                                </p>
+                            )}
+
                             {/* Email */}
-                            <p className="text-gray-500 font-medium mb-4 lowercase">
+                            <p className="text-slate-400 font-medium mb-4 lowercase">
                                 {user?.email}
                             </p>
 
                             {/* Badges */}
                             <div className="flex flex-wrap items-center gap-3">
                                 {/* Role Badge */}
-                                <span className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg ${identity?.role === 'admin'
-                                    ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border border-purple-200'
-                                    : 'bg-gray-100 text-gray-700'
+                                <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl border-2 shadow-sm transition-all ${identity?.role === 'admin'
+                                    ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white border-indigo-400 font-black'
+                                    : 'bg-white text-slate-700 border-slate-200 font-bold'
                                     }`}>
-                                    <User className="w-3.5 h-3.5" />
-                                    {identity?.role === 'admin' ? 'Workspace Admin' : 'Member'}
-                                </span>
+                                    {identity?.role === 'admin' ? (
+                                        <div className="flex items-center gap-2">
+                                            <Shield className="w-4 h-4 text-indigo-200" />
+                                            <span className="tracking-tight uppercase">Workspace Admin</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            <User className="w-4 h-4 text-slate-400" />
+                                            <span className="tracking-tight uppercase">Team Member</span>
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Workspace Type Badge */}
-                                <span className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg ${identity?.workspace?.type === 'team'
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : 'bg-sky-50 text-sky-700 border border-sky-200'
+                                <span className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest rounded-2xl ${identity?.workspace?.type === 'team'
+                                    ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-100'
+                                    : 'bg-sky-50 text-sky-700 border-2 border-sky-100'
                                     }`}>
                                     {identity?.workspace?.type === 'team' ? (
                                         <>
                                             <UsersIcon className="w-3.5 h-3.5" />
-                                            Team Workspace
+                                            Team
                                         </>
                                     ) : (
                                         <>
                                             <Building2 className="w-3.5 h-3.5" />
-                                            Solo Workspace
+                                            Solo
                                         </>
                                     )}
                                 </span>
 
-                                {/* Workspace Name - Editable */}
-                                {identity?.workspace && identity?.role === 'admin' && (
-                                    <div className="flex items-center gap-1 text-xs text-gray-400 font-medium">
-                                        <span>Workspace:</span>
-                                        <EditableText
-                                            value={identity.workspace.name}
-                                            onSave={handleUpdateWorkspaceName}
-                                            placeholder="Workspace name"
-                                            className="text-gray-600 font-semibold"
-                                        />
+                                {/* Workspace Name */}
+                                {identity?.workspace && (
+                                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border-2 border-slate-100 rounded-2xl">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Workspace</span>
+                                        <span className="text-sm font-black text-slate-700">{identity.workspace.name}</span>
                                     </div>
                                 )}
                             </div>
@@ -686,96 +724,200 @@ export function UserDashboard() {
                             {identity?.role === 'admin' && (
                                 <button
                                     onClick={() => setShowInviteModal(true)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all"
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
                                 >
                                     <Plus className="w-4 h-4" />
                                     Invite Member
                                 </button>
                             )}
                         </div>
-                        <p className="text-sm text-gray-500 pl-12">Manage who can access this workspace</p>
+                        <p className="text-sm text-gray-500 pl-12">Manage and view workspace permissions</p>
                     </div>
 
-                    {team?.workspace_type !== 'team' ? (
-                        /* SOLO VIEW -> UNLOCK CTA */
-                        <div className="p-12 text-center bg-gradient-to-br from-gray-50 to-white">
-                            <div className="max-w-md mx-auto">
-                                <div className="p-4 bg-indigo-100 rounded-2xl text-indigo-300 w-fit mx-auto mb-6">
-                                    <Shield className="w-12 h-12" />
-                                </div>
-                                <h3 className="text-xl font-bold text-gray-900 mb-3">Unlock Team Workspace</h3>
-                                <p className="text-gray-500 mb-8">
-                                    Collaborate with your team, share schemas, and manage permissions together.
-                                </p>
-                                <button
-                                    disabled
-                                    className="px-8 py-3 bg-gray-100 text-gray-400 font-bold text-xs uppercase tracking-widest rounded-xl cursor-not-allowed border border-gray-200"
-                                >
-                                    Team Access: Coming Soon
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
+                    {(team?.members && team.members.length > 0) ? (
                         /* TEAM VIEW */
                         <div className="divide-y divide-gray-100">
-                            {/* Team Stats */}
-                            <div className="p-6 bg-gray-50 grid grid-cols-3 gap-4 text-center">
-                                <div>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Seats</p>
-                                    <p className="text-xl font-black text-gray-900">5</p>
+                            {/* Team Stats & Search */}
+                            <div className="p-6 bg-gray-50/50 border-b border-gray-100">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Seats</p>
+                                            <p className="text-2xl font-black text-gray-900">5</p>
+                                        </div>
+                                        <div className="p-2 bg-gray-50 rounded-lg">
+                                            <UsersIcon className="w-5 h-5 text-gray-400" />
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Active</p>
+                                            <p className="text-2xl font-black text-indigo-600">{team?.members.length || 0}</p>
+                                        </div>
+                                        <div className="p-2 bg-indigo-50 rounded-lg">
+                                            <Activity className="w-5 h-5 text-indigo-600" />
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Available</p>
+                                            <p className="text-2xl font-black text-emerald-600">{5 - (team?.members.length || 0)}</p>
+                                        </div>
+                                        <div className="p-2 bg-emerald-50 rounded-lg">
+                                            <UserPlus className="w-5 h-5 text-emerald-600" />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Active</p>
-                                    <p className="text-xl font-black text-gray-900">{team?.members.length || 0}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Available</p>
-                                    <p className="text-xl font-black text-green-600">{5 - (team?.members.length || 0)}</p>
+
+                                {/* Search Bar */}
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search members by name or email..."
+                                        value={memberSearchTerm}
+                                        onChange={(e) => setMemberSearchTerm(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-gray-400"
+                                    />
                                 </div>
                             </div>
 
                             {/* Members List */}
                             <div className="p-6">
-                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Active Members</h3>
+                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center justify-between">
+                                    <span>Active Members</span>
+                                    {memberSearchTerm && (
+                                        <span className="text-indigo-600">
+                                            Found {team?.members.filter(m =>
+                                            (m.username?.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+                                                m.display_name?.toLowerCase().includes(memberSearchTerm.toLowerCase()))
+                                            ).length} matches
+                                        </span>
+                                    )}
+                                </h3>
                                 <div className="space-y-3">
-                                    {team?.members.map(member => (
-                                        <div
-                                            key={member.id}
-                                            className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-gray-200 hover:shadow-sm transition-all"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-xs font-bold text-white">
-                                                    {(member.username || member.user_id.slice(0, 2)).slice(0, 2).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-gray-900">
-                                                        {member.user_id === user?.id ? 'You' : (member.username || `User ${member.user_id.slice(0, 4)}...`)}
-                                                        {member.is_owner && (
-                                                            <span className="ml-2 text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Owner</span>
+                                    {team?.members
+                                        .filter(m =>
+                                            !memberSearchTerm ||
+                                            (m.username?.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+                                                m.display_name?.toLowerCase().includes(memberSearchTerm.toLowerCase()))
+                                        )
+                                        .map(member => {
+                                            const isCurrentUser = member.user_id === user?.id;
+
+                                            // Better identity resolution
+                                            const getDisplayName = () => {
+                                                if (isCurrentUser) return identity?.user.username ? `@${identity.user.username}` : 'You';
+                                                if (member.username) return `@${member.username}`;
+                                                if (member.display_name) return member.display_name;
+                                                if (member.email) return member.email.split('@')[0];
+                                                return `Member-${member.user_id.slice(0, 6)}`;
+                                            };
+
+                                            const memberUsername = getDisplayName();
+                                            const memberDisplayName = isCurrentUser
+                                                ? (identity?.user.display_name || 'Workspace Owner')
+                                                : member.display_name;
+
+                                            const initials = (memberUsername.startsWith('@') ? memberUsername.slice(1) : memberUsername)[0]?.toUpperCase() || 'U';
+
+                                            // Distinct styling based on role
+                                            const isOwner = member.is_owner;
+                                            const isAdmin = member.role === 'admin';
+
+                                            let avatarGradient = 'from-gray-400 to-gray-500';
+                                            if (isOwner) avatarGradient = 'from-amber-400 to-orange-500';
+                                            else if (isAdmin) avatarGradient = 'from-violet-500 to-purple-600';
+                                            else avatarGradient = 'from-blue-400 to-indigo-500';
+
+                                            return (
+                                                <div
+                                                    key={member.id}
+                                                    className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-indigo-100 hover:shadow-sm transition-all group"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        {/* Avatar */}
+                                                        <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center text-sm font-bold text-white shadow-sm ring-2 ring-white`}>
+                                                            {initials}
+                                                        </div>
+
+                                                        {/* User Info */}
+                                                        <div className="min-w-0">
+                                                            {/* Username + Role Badge Row */}
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="text-sm font-bold text-gray-900">
+                                                                    {memberUsername}
+                                                                    {isCurrentUser && <span className="text-gray-400 font-normal ml-1">(You)</span>}
+                                                                </span>
+
+                                                                {/* Role Badges */}
+                                                                {isOwner ? (
+                                                                    <span className="text-[10px] font-black px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                                                        <Sparkles className="w-3 h-3" />
+                                                                        Owner
+                                                                    </span>
+                                                                ) : isAdmin ? (
+                                                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                                                        <Shield className="w-3 h-3" />
+                                                                        Admin
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] font-medium px-2 py-0.5 bg-gray-50 text-gray-500 border border-gray-100 rounded-full uppercase tracking-wide">
+                                                                        Member
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Display Name / Role Title */}
+                                                            {memberDisplayName && (
+                                                                <p className="text-xs text-gray-500 mt-0.5 font-medium truncate max-w-[200px]">
+                                                                    {memberDisplayName}
+                                                                </p>
+                                                            )}
+
+                                                            {/* Joined Date */}
+                                                            {member.joined_at && (
+                                                                <p className="text-[10px] text-gray-400 mt-1">
+                                                                    Joined {new Date(member.joined_at).toLocaleDateString()}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Actions - Only for admins, not for self/owner */}
+                                                    <div className="flex items-center gap-3">
+                                                        {identity?.role === 'admin' && !isCurrentUser && !member.is_owner && (
+                                                            <>
+                                                                {/* Role Change Dropdown */}
+                                                                <div className="relative group/role">
+                                                                    <select
+                                                                        value={member.role}
+                                                                        onChange={(e) => handleChangeRole(member.id, e.target.value as 'admin' | 'member')}
+                                                                        className={`appearance-none text-xs font-bold pl-3 pr-8 py-1.5 rounded-lg cursor-pointer border focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${member.role === 'admin'
+                                                                            ? 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-300'
+                                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                                                                            }`}
+                                                                    >
+                                                                        <option value="admin">Admin Access</option>
+                                                                        <option value="member">Member Access</option>
+                                                                    </select>
+                                                                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none text-gray-400 group-hover/role:text-gray-600" />
+                                                                </div>
+
+                                                                {/* Remove Button */}
+                                                                <button
+                                                                    onClick={() => handleRemoveMember(member.id, member.username)}
+                                                                    className="p-2 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                                    title="Remove member"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </>
                                                         )}
-                                                    </p>
-                                                    {member.joined_at && (
-                                                        <p className="text-xs text-gray-500">
-                                                            Joined {new Date(member.joined_at).toLocaleDateString()}
-                                                        </p>
-                                                    )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <span className={`text-xs font-bold px-3 py-1.5 rounded-lg ${member.role === 'admin'
-                                                    ? 'bg-purple-50 text-purple-700'
-                                                    : 'bg-gray-100 text-gray-600'
-                                                    }`}>
-                                                    {member.role.toUpperCase()}
-                                                </span>
-                                                {identity?.role === 'admin' && member.user_id !== user?.id && !member.is_owner && (
-                                                    <button className="text-gray-400 hover:text-red-600 transition-colors p-1.5 hover:bg-red-50 rounded-lg">
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
+                                            );
+                                        })}
                                 </div>
                             </div>
 
@@ -827,81 +969,34 @@ export function UserDashboard() {
                                 </div>
                             )}
                         </div>
-                    )}
-                </section>
-
-                {/* ============================
-                    SECTION 5: RECENT ACTIVITY LOG
-                ============================ */}
-                <section className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 bg-indigo-50 rounded-xl">
-                            <Clock className="w-5 h-5 text-indigo-600" />
-                        </div>
-                        <h2 className="text-lg font-bold text-gray-900">Recent Activity</h2>
-                    </div>
-
-                    {activity.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
-                            <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                            <p className="font-medium">No recent activity</p>
-                            <p className="text-sm">Your schema changes and actions will appear here</p>
-                        </div>
                     ) : (
-                        <div className="space-y-4">
-                            {activity.slice(0, 15).map(item => (
-                                <div
-                                    key={item.id}
-                                    className="flex items-start gap-4 p-4 bg-white border border-gray-100 rounded-2xl hover:border-indigo-100 hover:shadow-sm transition-all"
-                                >
-                                    {/* Icon Badge */}
-                                    <div className={`p-2.5 rounded-xl shrink-0 ${item.entity.type === 'schema'
-                                        ? 'bg-blue-50 text-blue-600'
-                                        : item.entity.type === 'team'
-                                            ? 'bg-indigo-50 text-indigo-600'
-                                            : item.entity.type === 'ai'
-                                                ? 'bg-purple-50 text-purple-600'
-                                                : 'bg-gray-100 text-gray-500'
-                                        }`}>
-                                        {item.entity.type === 'schema' ? (
-                                            <GitBranch className="w-4 h-4" />
-                                        ) : item.entity.type === 'team' ? (
-                                            <UsersIcon className="w-4 h-4" />
-                                        ) : item.entity.type === 'ai' ? (
-                                            <Sparkles className="w-4 h-4" />
-                                        ) : (
-                                            <Activity className="w-4 h-4" />
-                                        )}
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0 pt-1">
-                                        <p className="text-sm text-gray-900 leading-relaxed">
-                                            <span className="font-bold text-gray-800">{item.actor.name || 'User'}</span>
-                                            <span className="text-gray-600 px-1">{item.description}</span>
-                                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded ml-1 uppercase tracking-wide">
-                                                {item.actor.role}
-                                            </span>
-                                        </p>
-                                        <p className="text-xs text-gray-400 mt-1 font-medium flex items-center gap-1">
-                                            {new Date(item.timestamp).toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </p>
-                                    </div>
+                        /* SOLO VIEW -> UNLOCK CTA */
+                        <div className="p-12 text-center bg-gradient-to-br from-gray-50 to-white">
+                            <div className="max-w-md mx-auto">
+                                <div className="p-4 bg-indigo-100 rounded-2xl text-indigo-300 w-fit mx-auto mb-6">
+                                    <Shield className="w-12 h-12" />
                                 </div>
-                            ))}
+                                <h3 className="text-xl font-bold text-gray-900 mb-3">Unlock Team Workspace</h3>
+                                <p className="text-gray-500 mb-8">
+                                    Collaborate with your team, share schemas, and manage permissions together.
+                                </p>
+                                <button
+                                    disabled
+                                    className="px-8 py-3 bg-gray-100 text-gray-400 font-bold text-xs uppercase tracking-widest rounded-xl cursor-not-allowed border border-gray-200"
+                                >
+                                    Team Access: Coming Soon
+                                </button>
+                            </div>
                         </div>
                     )}
                 </section>
+
+
 
                 {/* ============================
                     SECTION 6: HELP & SUPPORT
                 ============================ */}
-                <section className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm">
+                < section className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm" >
                     <div className="flex items-center gap-3 mb-6">
                         <div className="p-2.5 bg-indigo-50 rounded-xl">
                             <HelpCircle className="w-5 h-5 text-indigo-600" />
@@ -943,12 +1038,12 @@ export function UserDashboard() {
                             <span className="text-sm font-medium text-gray-700 group-hover:text-green-600">Contact Support</span>
                         </a>
                     </div>
-                </section>
+                </section >
 
                 {/* ============================
                     DANGER ZONE
                 ============================ */}
-                <section className="border border-red-200 rounded-3xl overflow-hidden">
+                < section className="border border-red-200 rounded-3xl overflow-hidden" >
                     <div className="bg-gradient-to-r from-red-50 to-rose-50 p-8">
                         <h2 className="text-lg font-bold text-red-900 mb-2">Danger Zone</h2>
                         <p className="text-sm text-red-700">
@@ -975,35 +1070,39 @@ export function UserDashboard() {
                             </button>
                         )}
                     </div>
-                </section>
+                </section >
 
-            </div>
+            </div >
 
             {/* ============================
                 MODALS
             ============================ */}
-            {showInviteModal && identity?.workspace && (
-                <InviteModal
-                    workspaceId={identity.workspace.id}
-                    workspaceName={identity.workspace.name}
-                    onClose={() => setShowInviteModal(false)}
-                    onInviteGenerated={() => {
-                        if (identity.workspace?.id) {
-                            fetchInvites(identity.workspace.id).then(setInvites);
-                        }
-                    }}
-                />
-            )}
+            {
+                showInviteModal && identity?.workspace && (
+                    <InviteModal
+                        workspaceId={identity.workspace.id}
+                        workspaceName={identity.workspace.name}
+                        onClose={() => setShowInviteModal(false)}
+                        onInviteGenerated={() => {
+                            if (identity.workspace?.id) {
+                                fetchInvites(identity.workspace.id).then(setInvites);
+                            }
+                        }}
+                    />
+                )
+            }
 
-            {showDeleteModal && identity?.workspace && (
-                <DeleteAccountModal
-                    workspaceId={identity.workspace.id}
-                    onClose={() => setShowDeleteModal(false)}
-                />
-            )}
+            {
+                showDeleteModal && identity?.workspace && (
+                    <DeleteAccountModal
+                        workspaceId={identity.workspace.id}
+                        onClose={() => setShowDeleteModal(false)}
+                    />
+                )
+            }
 
-            {/* Edit Profile Drawer */}
-            <EditProfileDrawer
+            {/* Edit Profile Modal (Window) */}
+            <EditProfileModal
                 isOpen={showEditProfile}
                 onClose={() => setShowEditProfile(false)}
                 onSave={() => fetchDashboardData()}
@@ -1014,10 +1113,76 @@ export function UserDashboard() {
                 userRole={identity?.role || 'member'}
                 initialData={{
                     username: identity?.user.username || '',
-                    displayName: identity?.user.role_title || '',
+                    displayName: identity?.user.display_name || '',
                     workspaceName: identity?.workspace?.name || ''
                 }}
             />
-        </div>
+            {/* Migration: Username Setup Modal */}
+            {showSetupModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+                    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
+                        <div className="p-8 pb-4 text-center">
+                            <div className="w-20 h-20 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-indigo-600 shadow-inner">
+                                <Sparkles className="w-10 h-10" />
+                            </div>
+                            <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">
+                                Choose your Identity
+                            </h2>
+                            <p className="text-slate-500 text-sm leading-relaxed">
+                                Welcome to the new Vizora identity system! Please choose a unique username to continue.
+                            </p>
+                        </div>
+
+                        <div className="p-8 pt-4 space-y-6">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-400 uppercase tracking-wider ml-1">
+                                        Username
+                                    </label>
+                                    <div className="relative group">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold group-focus-within:text-indigo-500 transition-colors">@</div>
+                                        <input
+                                            type="text"
+                                            value={setupUsername}
+                                            onChange={(e) => setSetupUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                                            placeholder="your_unique_id"
+                                            className="w-full pl-9 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 outline-none ring-offset-0 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                    {setupError && (
+                                        <p className="text-xs font-bold text-red-500 ml-1 mt-1 flex items-center gap-1">
+                                            <Building2 className="w-3 h-3" /> {setupError}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2">Why do I need this?</h4>
+                                    <p className="text-[11px] text-slate-500 leading-normal">
+                                        Your username is your unique identifier across all workspaces and collaboration sessions. It cannot be changed frequently.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleSetupUsername}
+                                disabled={isSettingUp || setupUsername.length < 3}
+                                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-xl shadow-slate-900/20 hover:bg-indigo-600 active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:bg-slate-900 flex items-center justify-center gap-2"
+                            >
+                                {isSettingUp ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>Saving Profile...</span>
+                                    </>
+                                ) : (
+                                    <span>Set My Username</span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div >
     );
 }

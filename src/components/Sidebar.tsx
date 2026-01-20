@@ -13,7 +13,6 @@ import {
     ChevronLeft,
     Database,
     LayoutDashboard,
-    Users,
     Github,
     Chrome,
     ShieldCheck,
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarItem } from './SidebarItem';
+import { WorkspaceSidebarSection } from './WorkspaceSidebarSection';
 import { useProjectContext } from '../context/ProjectContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -34,7 +34,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const location = useLocation();
     const navigate = useNavigate();
     const { projectId, project: projectInfo } = useProjectContext();
-    const { user } = useAuth();
+    const { user, identity } = useAuth();
 
     const handleNavigation = (path: string) => {
         navigate(path);
@@ -146,6 +146,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     active={isActive('/projects')}
                                     onClick={() => handleNavigation('/projects')}
                                 />
+                                <WorkspaceSidebarSection />
                                 <SidebarItem
                                     icon={HelpCircle}
                                     label="Help / Docs"
@@ -177,15 +178,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     active={isActive(getWorkspacePath('overview'))}
                                     onClick={() => handleNavigation(getWorkspacePath('overview'))}
                                 />
-                                <SidebarItem
-                                    icon={Users}
-                                    label="Team"
-                                    active={isActive(getWorkspacePath('team'))}
-                                    onClick={() => handleNavigation(getWorkspacePath('team'))}
-                                />
                             </div>
-
-                            {/* Core 4 Features */}
                             <div className="space-y-1 pt-4 border-t border-gray-100">
                                 <div className="px-3 mb-2">
                                     <span className="text-[10px] font-medium text-gray-400 uppercase tracking-widest">Core Features</span>
@@ -291,7 +284,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 />
                             ) : (
                                 <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border border-indigo-200">
-                                    {user?.user_metadata?.full_name?.[0] || 'U'}
+                                    {(identity?.username || identity?.display_name || user?.email || 'U')[0].toUpperCase()}
                                 </div>
                             )}
                             <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm border border-gray-100">
@@ -300,13 +293,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 truncate group-hover/user:text-indigo-600 transition-colors">
-                                {user?.user_metadata?.full_name || 'Anonymous User'}
+                                {identity?.username ? `@${identity.username}` : 'Anonymous'}
                             </p>
                             <p className="text-[11px] text-gray-500 truncate lowercase">
-                                {user?.email}
+                                {identity?.display_name || identity?.email || user?.email}
                             </p>
                             <p className="text-[10px] text-gray-400 font-medium mt-0.5 flex items-center gap-1">
-                                Signed in via <span className="capitalize">{user?.app_metadata?.provider}</span>
+                                {identity?.role ? (
+                                    <span className="capitalize text-indigo-500 font-bold">{identity.role}</span>
+                                ) : (
+                                    <span>Signed in via <span className="capitalize">{user?.app_metadata?.provider}</span></span>
+                                )}
                             </p>
                         </div>
                     </button>

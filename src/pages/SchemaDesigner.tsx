@@ -27,9 +27,15 @@ import {
     Edit3,
     Plus,
     X,
-    Trash2
+    Trash2,
+    Image,
+    ChevronDown
 } from 'lucide-react';
+import { toPng, toJpeg } from 'html-to-image';
+import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useCollaborationContext } from '../context/CollaborationContext';
+import { WorkspaceChatWrapper } from '../components/chat/WorkspaceChatWrapper';
 import { Command as CommandPalette, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from 'cmdk';
 import { useProject } from '../hooks/useProject';
 import { ToolRail, CanvasTool } from '../components/schema-designer/ToolRail';
@@ -55,6 +61,7 @@ const edgeTypes = {
 
 function SchemaDesignerContent() {
     const { projectId, loading: projectLoading } = useProject();
+    const { setCurrentContext } = useCollaborationContext();
     const { fitView, getNodes, screenToFlowPosition, setViewport, getViewport } = useReactFlow();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -202,7 +209,7 @@ function SchemaDesignerContent() {
                 position: pos,
                 data: {
                     label: name,
-                    columns: table.columns,
+                    columns: (table as any).columns,
                     onAddColumn,
                     onDeleteTable: deleteTable,
                     onUpdateTableName: updateTable,
@@ -230,9 +237,25 @@ function SchemaDesignerContent() {
                 if (status === 'SUBSCRIBED') {
                     setPresenceChannel(channel);
                     const { data: { user } } = await supabase.auth.getUser();
-                    const initials = user?.email?.substring(0, 2).toUpperCase() || '??';
+
+                    // Fetch authoritative username
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('username, display_name')
+                        .eq('id', user?.id)
+                        .maybeSingle();
+
+                    const username = userData?.username ? `@${userData.username}` : (userData?.display_name || user?.email?.split('@')[0] || '??');
+                    const initials = (username.startsWith('@') ? username.slice(1) : username)[0]?.toUpperCase() || 'U';
                     const color = `hsl(${Math.random() * 360}, 70%, 50%)`;
-                    await channel.track({ user_id: user?.id, email: user?.email, initials, color });
+
+                    await channel.track({
+                        user_id: user?.id,
+                        email: user?.email,
+                        username,
+                        initials,
+                        color
+                    });
                 }
             });
 
@@ -360,6 +383,77 @@ function SchemaDesignerContent() {
         setActiveTool('select');
     }, [schema, addToHistory]);
 
+    const [showExportOptions, setShowExportOptions] = useState(false);
+
+    const exportImage = useCallback(async (format: 'png' | 'jpg') => {
+        const element = document.querySelector('.react-flow') as HTMLElement;
+        if (!element) return;
+
+        const toastId = toast.loading(`Generating ${format.toUpperCase()} image...`);
+        const exporter = format === 'png' ? toPng : toJpeg;
+
+        try {
+            const dataUrl = await exporter(element, {
+                backgroundColor: '#fafafa',
+                quality: 0.95,
+                style: {
+                    transform: 'scale(1)',
+                    transformOrigin: 'top left',
+                },
+                filter: (node: any) => {
+                    if (
+                        node?.classList?.contains('react-flow__controls') ||
+                        node?.classList?.contains('react-flow__attribution') ||
+                        node?.classList?.contains('lucide')
+                    ) {
+                        return false;
+                    }
+                    return true;
+                },
+            });
+
+            const fileName = `vizora-diagram-${projectId || 'export'}.${format}`;
+
+            // Try File System Access API for "Save As" dialog (Chrome/Edge)
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const blob = await (await fetch(dataUrl)).blob();
+                    const handle = await (window as any).showSaveFilePicker({
+                        suggestedName: fileName,
+                        types: [{
+                            description: format === 'png' ? 'PNG Image' : 'JPEG Image',
+                            accept: { [format === 'png' ? 'image/png' : 'image/jpeg']: [`.${format}`] }
+                        }]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    toast.success(`Diagram saved as ${format.toUpperCase()}`, { id: toastId });
+                    setShowExportOptions(false);
+                    return;
+                } catch (err: any) {
+                    // User cancelled the dialog or API not fully supported
+                    if (err.name === 'AbortError') {
+                        toast.dismiss(toastId);
+                        return;
+                    }
+                    // Fall through to standard download
+                }
+            }
+
+            // Fallback: Standard download
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = dataUrl;
+            link.click();
+            toast.success(`Diagram exported as ${format.toUpperCase()}`, { id: toastId });
+            setShowExportOptions(false);
+        } catch (err) {
+            console.error('Export Error:', err);
+            toast.error('Failed to export image', { id: toastId });
+        }
+    }, [projectId]);
+
     const handleMouseDown = useCallback((e: React.MouseEvent) => { mouseDownPos.current = { x: e.clientX, y: e.clientY }; }, []);
     const handleMouseUp = useCallback((e: React.MouseEvent) => {
         if (!mouseDownPos.current) return;
@@ -372,6 +466,12 @@ function SchemaDesignerContent() {
         }
         mouseDownPos.current = null;
     }, [activeTool, createTable, screenToFlowPosition]);
+
+    const onPaneClick = useCallback(() => {
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
+        setCurrentContext(null);
+    }, [setCurrentContext]);
 
     if (projectLoading) {
         return (
@@ -399,11 +499,15 @@ function SchemaDesignerContent() {
                     <button onClick={redo} disabled={redoStack.length === 0} className="p-2 hover:bg-slate-100 rounded-xl disabled:opacity-30 transition-colors"><Redo2 className="h-4 w-4 text-slate-600" /></button>
                 </div>
                 <div className="flex -space-x-2 mr-2">
-                    {collaborators.map((c, i) => (
-                        <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-indigo-500 flex items-center justify-center text-[10px] font-black text-white shadow-sm ring-2 ring-transparent hover:ring-indigo-200 transition-all cursor-help" title={c.email}>
-                            {c.initials}
-                        </div>
-                    ))}
+                    {collaborators.map((c, i) => {
+                        const displayName = c.username || c.email || 'Unknown';
+                        const initials = (displayName.startsWith('@') ? displayName.slice(1) : displayName)[0]?.toUpperCase() || 'U';
+                        return (
+                            <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-indigo-500 flex items-center justify-center text-[10px] font-black text-white shadow-sm ring-2 ring-transparent hover:ring-indigo-200 transition-all cursor-help" title={displayName}>
+                                {initials}
+                            </div>
+                        );
+                    })}
                     {collaborators.length === 0 && <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-300 shadow-sm" />}
                 </div>
                 <button onClick={() => setIsSearchOpen(true)} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:bg-slate-50 transition-all group">
@@ -412,6 +516,35 @@ function SchemaDesignerContent() {
                 <button onClick={() => setIsHistoryOpen(true)} className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:bg-slate-50 transition-all font-black text-[10px] uppercase tracking-widest text-slate-600">
                     <Clock className="h-4 w-4" /> History
                 </button>
+                <div className="relative">
+                    <button
+                        onClick={() => setShowExportOptions(!showExportOptions)}
+                        className="px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl shadow-sm font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2"
+                    >
+                        <Image className="h-4 w-4 text-indigo-500" />
+                        Download Diagram
+                        <ChevronDown className={`h-3 w-3 transition-transform ${showExportOptions ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showExportOptions && (
+                        <div className="absolute top-full mt-2 right-0 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-[100] min-w-[140px] animate-in fade-in slide-in-from-top-2 duration-200">
+                            <button
+                                onClick={() => exportImage('png')}
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between group"
+                            >
+                                PNG (Recommended)
+                                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[8px] text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-colors">HD</span>
+                            </button>
+                            <button
+                                onClick={() => exportImage('jpg')}
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between group"
+                            >
+                                JPG (Smaller)
+                                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[8px] text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-colors">Web</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
                 <button onClick={() => { setGeneratedCode(generateSql(schema as any)); setIsCodeViewerOpen(true); }} className="px-5 py-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 font-black text-[10px] uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all flex items-center gap-2">
                     <FileCode className="h-4 w-4" /> Export SQL
                 </button>
@@ -443,11 +576,21 @@ function SchemaDesignerContent() {
                 onMouseMove={handleMouseMove}
                 onEdgesDelete={onEdgesDelete}
                 onEdgeClick={(_, edge) => { setSelectedEdgeId(edge.id); setSelectedNodeId(null); }}
-                onNodeClick={(_, node) => { setSelectedNodeId(node.id); setSelectedEdgeId(null); }}
+                onNodeClick={(_, node) => {
+                    setSelectedNodeId(node.id);
+                    setSelectedEdgeId(null);
+                    const table = (schema.tables as any)[node.id];
+                    if (table) {
+                        setCurrentContext({
+                            schema_version: 1,
+                            table: node.id
+                        });
+                    }
+                }}
                 onNodeContextMenu={(e, node) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, type: 'node', id: node.id }); }}
                 onPaneContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, type: 'pane' }); }}
-                nodeTypes={nodeTypes}
-                edgeTypes={edgeTypes}
+                nodeTypes={nodeTypes as any}
+                edgeTypes={edgeTypes as any}
                 panOnDrag={isPanActive}
                 selectionOnDrag={activeTool === 'select' && !spacePressed}
                 nodesDraggable={activeTool === 'select'}
@@ -457,7 +600,7 @@ function SchemaDesignerContent() {
                 snapToGrid={snapToGrid}
                 snapGrid={[20, 20]}
                 className="w-full h-full"
-                onPaneClick={() => { setSelectedNodeId(null); setSelectedEdgeId(null); }}
+                onPaneClick={onPaneClick}
             >
                 <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>
                     <defs>
@@ -602,7 +745,8 @@ function SchemaDesignerContent() {
                     </div>
                 )}
             </AnimatePresence>
-        </div >
+            <WorkspaceChatWrapper />
+        </div>
     );
 }
 

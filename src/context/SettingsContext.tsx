@@ -70,12 +70,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             setUserId(user.id);
 
             const { data: profile } = await supabase
-                .from('profiles')
-                .select('default_workspace_id')
+                .from('users')
+                .select('workspace_id')
                 .eq('id', user.id)
                 .single();
 
-            const wsId = profile?.default_workspace_id;
+            const wsId = profile?.workspace_id;
             setWorkspaceId(wsId);
 
             const data = await api.settings.getAll(user.id, wsId);

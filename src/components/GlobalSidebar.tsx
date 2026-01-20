@@ -4,6 +4,8 @@ import { Folder, PenTool, Settings, HelpCircle, LogOut, Github, Chrome, MessageS
 import { Logo } from './VizoraLogo';
 import { useAuth } from '../context/AuthContext';
 import { FeedbackPrompt } from './beta/FeedbackPrompt';
+import { useWorkspaceRole } from '../hooks/useWorkspaceRole';
+import { GlobalSidebarWorkspaces } from './GlobalSidebarWorkspaces';
 
 interface GlobalSidebarProps {
     isMobileOpen?: boolean;
@@ -12,8 +14,9 @@ interface GlobalSidebarProps {
 export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, signOut } = useAuth();
+    const { user, profile, signOut } = useAuth();
     const [showFeedback, setShowFeedback] = useState(false);
+    const { isAdmin } = useWorkspaceRole(); // Will use default workspace if no project ID
 
     const navItems = [
         { icon: Folder, label: 'Projects', path: '/projects' },
@@ -65,30 +68,32 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                 {navItems.map((item) => {
                     const active = isActive(item.path);
                     return (
-                        <button
-                            key={item.label}
-                            onClick={() => navigate(item.path)}
-                            className={`
-                                relative flex items-center h-10 px-2 rounded-lg transition-all duration-200 group/item
-                                ${active ? 'bg-indigo-50/50 dark:bg-indigo-900/30' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}
-                            `}
-                        >
-                            {active && (
-                                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 bg-indigo-600 rounded-r" />
-                            )}
+                        <div key={item.label} className="flex flex-col">
+                            <button
+                                onClick={() => navigate(item.path)}
+                                className={`
+                                    relative flex items-center h-10 px-2 rounded-lg transition-all duration-200 group/item
+                                    ${active ? 'bg-indigo-50/50 dark:bg-indigo-900/30' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}
+                                `}
+                            >
+                                {active && (
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 bg-indigo-600 rounded-r" />
+                                )}
 
-                            <item.icon
-                                className={`h-5 w-5 shrink-0 transition-colors ${active ? 'text-indigo-600' : 'text-gray-500 dark:text-slate-400 group-hover/item:text-gray-900 dark:group-hover/item:text-white'}`}
-                                strokeWidth={2}
-                            />
+                                <item.icon
+                                    className={`h-5 w-5 shrink-0 transition-colors ${active ? 'text-indigo-600' : 'text-gray-500 dark:text-slate-400 group-hover/item:text-gray-900 dark:group-hover/item:text-white'}`}
+                                    strokeWidth={2}
+                                />
 
-                            <span className={`
-                                ml-4 text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                                ${active ? 'text-indigo-900 dark:text-indigo-400' : 'text-gray-600 dark:text-slate-300'}
-                            `}>
-                                {item.label}
-                            </span>
-                        </button>
+                                <span className={`
+                                    ml-4 text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                                    ${active ? 'text-indigo-900 dark:text-indigo-400' : 'text-gray-600 dark:text-slate-300'}
+                                `}>
+                                    {item.label}
+                                </span>
+                            </button>
+                            {item.label === 'Projects' && <GlobalSidebarWorkspaces />}
+                        </div>
                     );
                 })}
 
@@ -175,8 +180,18 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                             </div>
                         </div>
                         <div className="ml-3 text-left opacity-0 group-hover:opacity-100 transition-opacity overflow-hidden whitespace-nowrap">
-                            <p className="text-xs font-bold text-gray-900 dark:text-white">{user?.user_metadata?.full_name || 'User'}</p>
-                            <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate lowercase">{user?.email}</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-tight">
+                                    {profile?.username || user?.user_metadata?.full_name || 'User'}
+                                </p>
+                                <div className={`px-1.5 py-0.5 rounded text-[8px] font-black border ${isAdmin
+                                    ? 'bg-purple-100 text-purple-700 border-purple-200'
+                                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                                    }`}>
+                                    {isAdmin ? 'ADMIN' : 'MEMBER'}
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate lowercase leading-none mt-0.5">{user?.email}</p>
                         </div>
                     </button>
 

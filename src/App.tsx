@@ -24,7 +24,6 @@ const SchemaExplorer = lazy(() => import('./pages/SchemaExplorer').then(m => ({ 
 const VersionCompare = lazy(() => import('./pages/VersionCompare').then(m => ({ default: m.VersionCompare })));
 const Comments = lazy(() => import('./pages/Comments').then(m => ({ default: m.Comments })));
 const UserDashboard = lazy(() => import('./pages/UserDashboard').then(m => ({ default: m.UserDashboard })));
-const OnboardingForm = lazy(() => import('./pages/OnboardingForm').then(m => ({ default: m.OnboardingForm })));
 const TeamMembers = lazy(() => import('./pages/TeamMembers').then(m => ({ default: m.TeamMembers })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(m => ({ default: m.InviteAccept })));
 const JoinTeam = lazy(() => import('./pages/JoinTeam').then(m => ({ default: m.JoinTeam })));
@@ -37,6 +36,12 @@ const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ defaul
 const SchemaReview = lazy(() => import('./pages/Intelligence/SchemaReview'));
 const OnboardingGuide = lazy(() => import('./pages/Intelligence/OnboardingGuide'));
 const AskSchema = lazy(() => import('./pages/Intelligence/AskSchema'));
+
+const WorkspaceEditor = lazy(() => import('./pages/Workspace/WorkspaceEditor').then(m => ({ default: m.WorkspaceEditor })));
+const CreateWorkspace = lazy(() => import('./pages/Workspace/CreateWorkspace').then(m => ({ default: m.CreateWorkspace })));
+const WorkspaceTeam = lazy(() => import('./pages/Workspace/WorkspaceTeam').then(m => ({ default: m.WorkspaceTeam })));
+const WorkspaceVersionHistory = lazy(() => import('./pages/Workspace/WorkspaceVersionHistory').then(m => ({ default: m.WorkspaceVersionHistory })));
+const WorkspaceVersionCompare = lazy(() => import('./pages/Workspace/WorkspaceVersionCompareEnhanced').then(m => ({ default: m.WorkspaceVersionCompareEnhanced })));
 
 // Loading component
 function PageLoader() {
@@ -83,32 +88,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 function AuthRedirect() {
     const { user, loading } = useAuth();
     const navigate = useNavigate();
-    const [isRedirecting, setIsRedirecting] = useState(false);
 
     useEffect(() => {
-        if (!loading && user && !isRedirecting) {
-            setIsRedirecting(true);
-
-            // Check if user needs onboarding
-            const checkOnboarding = async () => {
+        if (!loading && user) {
+            // Check for existing projects and redirect accordingly
+            const checkRedirect = async () => {
                 try {
-                    const { data: profile, error: profileError } = await supabase
-                        .from('profiles')
-                        .select('onboarded')
-                        .eq('id', user.id)
-                        .maybeSingle();
-
-                    if (profileError) {
-                        navigate('/onboarding', { replace: true });
-                        return;
-                    }
-
-                    // If no profile or not onboarded, redirect to onboarding
-                    if (!profile || !profile.onboarded) {
-                        navigate('/onboarding', { replace: true });
-                        return;
-                    }
-
                     // Check for existing projects
                     const { data: projects, error: projectsError } = await supabase
                         .from('projects')
@@ -127,13 +112,13 @@ function AuthRedirect() {
                         navigate('/projects', { replace: true });
                     }
                 } catch (err) {
-                    navigate('/onboarding', { replace: true });
+                    navigate('/projects', { replace: true });
                 }
             };
 
-            checkOnboarding();
+            checkRedirect();
         }
-    }, [user, loading, navigate, isRedirecting]);
+    }, [user, loading, navigate]);
 
     if (loading) {
         return (
@@ -154,9 +139,20 @@ function AuthRedirect() {
     return <SignInPage />;
 }
 
+import { Toaster } from 'react-hot-toast';
+
 function App() {
     return (
         <Router>
+            <Toaster position="bottom-right" toastOptions={{
+                style: {
+                    background: '#334155',
+                    color: '#fff',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    padding: '12px 20px',
+                },
+            }} />
             <BetaWatermark />
             <TabTransitionLoader />
             <Suspense fallback={<PageLoader />}>
@@ -167,18 +163,49 @@ function App() {
                     {/* Authentication Page */}
                     <Route path="/auth/signin" element={<AuthRedirect />} />
 
-                    {/* Onboarding - Protected */}
-                    <Route path="/onboarding" element={
-                        <AuthGuard>
-                            <OnboardingForm />
-                        </AuthGuard>
-                    } />
 
                     {/* Public Invite Accept (Legacy) */}
                     <Route path="/join" element={<InviteAccept />} />
 
                     {/* Team Join Link (New secure flow) */}
                     <Route path="/join/team" element={<JoinTeam />} />
+
+                    {/* WORKSPACE V2 ROUTES - Protected */}
+                    <Route path="/workspaces/create" element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <CreateWorkspace />
+                            </MainLayout>
+                        </AuthGuard>
+                    } />
+                    <Route path="/workspaces/:workspaceId" element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <WorkspaceEditor />
+                            </MainLayout>
+                        </AuthGuard>
+                    } />
+                    <Route path="/workspaces/:workspaceId/team" element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <WorkspaceTeam />
+                            </MainLayout>
+                        </AuthGuard>
+                    } />
+                    <Route path="/workspaces/:workspaceId/history" element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <WorkspaceVersionHistory />
+                            </MainLayout>
+                        </AuthGuard>
+                    } />
+                    <Route path="/workspaces/:workspaceId/compare" element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <WorkspaceVersionCompare />
+                            </MainLayout>
+                        </AuthGuard>
+                    } />
 
                     {/* WORKSPACE ROUTES - Protected */}
                     <Route path="/workspace/:projectId/*" element={

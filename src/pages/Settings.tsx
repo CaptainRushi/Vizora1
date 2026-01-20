@@ -158,16 +158,16 @@ export function Settings() {
                 if (!user) return;
 
                 const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('default_workspace_id')
+                    .from('users')
+                    .select('workspace_id')
                     .eq('id', user.id)
                     .single();
 
-                if (profile?.default_workspace_id) {
+                if (profile?.workspace_id) {
                     const { data: member } = await supabase
                         .from('workspace_members')
                         .select('role')
-                        .eq('workspace_id', profile.default_workspace_id)
+                        .eq('workspace_id', profile.workspace_id)
                         .eq('user_id', user.id)
                         .single();
 

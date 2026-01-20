@@ -10,7 +10,8 @@
   "scripts": {
     "start": "tsx index.ts",
     "build": "echo 'No build step required for tsx'",
-    "dev": "tsx watch index.ts",
+    "dev": "tsx watch --ignore node_modules index.ts",
+    "serve": "tsx index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -32,6 +33,9 @@
     "openai": "^4.28.0",
     "puppeteer": "^24.34.0",
     "razorpay": "^2.9.6",
+    "socket.io": "^4.8.3",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.29",
     "zod": "^3.23.8"
   },
   "devDependencies": {

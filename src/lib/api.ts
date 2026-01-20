@@ -4,7 +4,7 @@ import axios from 'axios';
 const rawBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 const API_BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
-axios.defaults.timeout = 10000; // 10s timeout to prevent stuck loaders
+axios.defaults.timeout = 60000; // 60s timeout for AI operations
 
 // Export for direct usage
 export const BACKEND_URL = API_BASE_URL;
@@ -110,16 +110,36 @@ export const api = {
         return res.data;
     },
 
+    // Universal Username System APIs
+    user: {
+        getMe: async (userId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/me`, {
+                headers: { 'x-user-id': userId }
+            });
+            return res.data;
+        },
+        updateUsername: async (userId: string, username: string) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/me/username`, { username }, {
+                headers: { 'x-user-id': userId }
+            });
+            return res.data;
+        },
+        updateIdentity: async (userId: string, data: { display_name?: string; workspace_name?: string; workspaceId?: string }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/me`, data, {
+                headers: { 'x-user-id': userId }
+            });
+            return res.data;
+        },
+        updateProfile: async (userId: string, data: { username?: string; display_name?: string; workspace_name?: string }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/profile`, data, {
+                headers: { 'x-user-id': userId }
+            });
+            return res.data;
+        }
+    },
+
     // User Dashboard APIs
     dashboard: {
-        getIdentity: async (userId: string) => {
-            const res = await axios.get(`${API_BASE_URL}/api/dashboard/identity`, { params: { userId } });
-            return res.data;
-        },
-        updateIdentity: async (data: { userId: string; username?: string; workspaceName?: string; workspaceId?: string }) => {
-            const res = await axios.patch(`${API_BASE_URL}/api/dashboard/identity`, data);
-            return res.data;
-        },
         getUsage: async (workspaceId: string) => {
             const res = await axios.get(`${API_BASE_URL}/api/dashboard/usage`, { params: { workspaceId } });
             return res.data;
@@ -147,20 +167,30 @@ export const api = {
         getActivityLog: async (workspaceId: string, limit?: number) => {
             const res = await axios.get(`${API_BASE_URL}/api/dashboard/activity-log`, { params: { workspaceId, limit } });
             return res.data;
-        },
-        // Profile APIs for Edit Profile feature
-        getProfile: async (userId: string) => {
-            const res = await axios.get(`${API_BASE_URL}/api/dashboard/profile`, { params: { userId } });
+        }
+    },
+
+    // Workspace Member Management (Role Management System)
+    workspace: {
+        // GET /api/workspace/members - Fetch member list
+        getMembers: async (workspaceId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/workspace/members`, { params: { workspaceId } });
             return res.data;
         },
-        updateProfile: async (data: {
-            userId: string;
-            username?: string;
-            display_name?: string;
-            workspace_name?: string;
-            workspaceId?: string;
-        }) => {
-            const res = await axios.patch(`${API_BASE_URL}/api/dashboard/profile`, data);
+        // PATCH /api/workspace/members/:userId/role - Change role (Admin only)
+        changeRole: async (userId: string, role: 'admin' | 'member', workspaceId: string, requesterId: string) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/workspace/members/${userId}/role`, {
+                role,
+                workspaceId,
+                requesterId
+            });
+            return res.data;
+        },
+        // DELETE /api/workspace/members/:userId - Remove member (Admin only)
+        removeMember: async (userId: string, workspaceId: string, requesterId: string) => {
+            const res = await axios.delete(`${API_BASE_URL}/api/workspace/members/${userId}`, {
+                data: { workspaceId, requesterId }
+            });
             return res.data;
         }
     },

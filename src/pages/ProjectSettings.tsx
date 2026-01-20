@@ -1,21 +1,20 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
     Settings,
     Database,
     Brain,
-    Users,
     Trash2,
     Save,
     CheckCircle2,
     Activity,
-    UserPlus,
-    Info,
     Archive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../lib/api';
 import { useProjectContext } from '../context/ProjectContext';
+import { useWorkspaceRole } from '../hooks/useWorkspaceRole';
+
 
 interface ProjectSettingsState {
     general: {
@@ -38,9 +37,10 @@ interface ProjectSettingsState {
 }
 
 export function ProjectSettings() {
-    const { projectId } = useParams();
     const navigate = useNavigate();
-    const { refreshProject } = useProjectContext();
+    const { projectId, project: projectInfo, refreshProject } = useProjectContext();
+    const { isAdmin } = useWorkspaceRole({ workspaceId: projectInfo?.workspace_id });
+
     const [settings, setSettings] = useState<ProjectSettingsState | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -383,110 +383,67 @@ export function ProjectSettings() {
                     </div>
                 </section>
 
-                {/* 4. COLLABORATION */}
-                <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-800/50 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <Users className="h-5 w-5 text-slate-400" />
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Collaboration</h2>
-                        </div>
-                        <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white text-sm font-bold rounded-xl transition-all">
-                            <UserPlus className="h-4 w-4" />
-                            Invite Member
-                        </button>
-                    </div>
-                    <div className="p-8">
-                        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl p-4 flex items-start gap-3 mb-8">
-                            <Info className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
-                            <div className="text-sm text-indigo-900 dark:text-indigo-300 leading-relaxed">
-                                <span className="font-bold">Access Mode:</span> This project is currently inheriting roles from your workspace. Workspace admins have full control, and members have editor access.
-                            </div>
-                        </div>
 
-                        <div className="space-y-4">
-                            <label className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Project Members</label>
-                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {settings.members.length === 0 ? (
-                                    <div className="py-10 text-center text-slate-500 font-medium italic">
-                                        No custom project roles defined.
-                                    </div>
-                                ) : (
-                                    settings.members.map((member, i) => (
-                                        <div key={i} className="py-4 flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center font-black text-indigo-600">
-                                                    {member.username?.[0] || 'U'}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-slate-900 dark:text-white">{member.username || 'Collaborator'}</div>
-                                                    <div className="text-xs text-slate-500 font-mono italic">Role: {member.role}</div>
-                                                </div>
-                                            </div>
-                                            <button className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </section>
+
 
                 {/* 5. DATA & RETENTION / DANGER ZONE */}
-                <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-800/50 flex items-center gap-3">
-                        <Trash2 className="h-5 w-5 text-red-500" />
-                        <h2 className="text-lg font-bold text-red-650 dark:text-red-400">Danger Zone</h2>
-                    </div>
-                    <div className="p-8 space-y-8">
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="font-bold text-slate-900 dark:text-white">Schema Version Retention</div>
-                                <span className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 uppercase">Unlimited</span>
+                {
+                    isAdmin && (
+                        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800/50 flex items-center gap-3">
+                                <Trash2 className="h-5 w-5 text-red-500" />
+                                <h2 className="text-lg font-bold text-red-650 dark:text-red-400">Danger Zone</h2>
                             </div>
-                            <p className="text-sm text-slate-500 leading-relaxed max-w-2xl">
-                                We currently keep all versions of your schema. You can manually archive old versions to clean up your timeline, but they will remain viewable in the history.
-                            </p>
-                        </div>
-
-                        <div className="pt-6 border-t border-red-50 dark:border-red-900/20">
-                            <div className="mb-6">
-                                <h3 className="text-red-600 dark:text-red-400 font-black mb-1 uppercase tracking-tight">Delete this project</h3>
-                                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                                    Once deleted, all schema versions, AI logs, diagrams, and historical data associated with this project will be permanently removed. This action cannot be undone.
-                                </p>
-                            </div>
-
-                            <div className="flex flex-col md:flex-row items-end gap-4">
-                                <div className="flex-1 space-y-2">
-                                    <label className="text-xs font-black text-slate-400 uppercase">Type <span className="text-slate-900 dark:text-white select-none">{settings.general.name}</span> to confirm</label>
-                                    <input
-                                        type="text"
-                                        value={deleteConfirm}
-                                        onChange={e => setDeleteConfirm(e.target.value)}
-                                        className="w-full px-4 py-3 bg-red-50/30 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-red-600 placeholder:text-red-200"
-                                        placeholder="Confirm project name"
-                                    />
+                            <div className="p-8 space-y-8">
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="font-bold text-slate-900 dark:text-white">Schema Version Retention</div>
+                                        <span className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 uppercase">Unlimited</span>
+                                    </div>
+                                    <p className="text-sm text-slate-500 leading-relaxed max-w-2xl">
+                                        We currently keep all versions of your schema. You can manually archive old versions to clean up your timeline, but they will remain viewable in the history.
+                                    </p>
                                 </div>
-                                <button
-                                    onClick={handleDeleteProject}
-                                    disabled={deleteConfirm !== settings.general.name}
-                                    className="px-8 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:grayscale text-white font-black text-sm rounded-xl transition-all shadow-lg shadow-red-200 dark:shadow-none min-w-[160px]"
-                                >
-                                    Delete Project
-                                </button>
+
+                                <div className="pt-6 border-t border-red-50 dark:border-red-900/20">
+                                    <div className="mb-6">
+                                        <h3 className="text-red-600 dark:text-red-400 font-black mb-1 uppercase tracking-tight">Delete this project</h3>
+                                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                                            Once deleted, all schema versions, AI logs, diagrams, and historical data associated with this project will be permanently removed. This action cannot be undone.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-col md:flex-row items-end gap-4">
+                                        <div className="flex-1 space-y-2">
+                                            <label className="text-xs font-black text-slate-400 uppercase">Type <span className="text-slate-900 dark:text-white select-none">{settings.general.name}</span> to confirm</label>
+                                            <input
+                                                type="text"
+                                                value={deleteConfirm}
+                                                onChange={e => setDeleteConfirm(e.target.value)}
+                                                className="w-full px-4 py-3 bg-red-50/30 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-red-600 placeholder:text-red-200"
+                                                placeholder="Confirm project name"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handleDeleteProject}
+                                            disabled={deleteConfirm !== settings.general.name}
+                                            className="px-8 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:grayscale text-white font-black text-sm rounded-xl transition-all shadow-lg shadow-red-200 dark:shadow-none min-w-[160px]"
+                                        >
+                                            Delete Project
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                </section>
+                        </section>
+                    )
+                }
 
                 <div className="flex items-center justify-center gap-8 py-10 opacity-40">
                     <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1" />
                     <div className="text-xs font-mono uppercase tracking-[0.2em] text-slate-400">Vizora Core Settings</div>
                     <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1" />
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

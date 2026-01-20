@@ -1,5 +1,6 @@
 
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import compression from 'compression';
@@ -18,6 +19,7 @@ import {
 } from './parser.js';
 import { marked } from 'marked';
 import crypto from 'crypto';
+import { initializeCollaboration } from './src/collaboration/index.js';
 
 // New Intelligence Routes
 import schemaReviewRoutes from './src/routes/schemaReview.js';
@@ -25,8 +27,10 @@ import onboardingGuideRoutes from './src/routes/onboardingGuide.js';
 import askSchemaRoutes from './src/routes/askSchema.js';
 import dashboardRoutes from './src/routes/dashboard.js';
 import teamRoutes from './src/routes/team.js';
+import workspaceRoutes from './src/routes/workspace.js';
 import platformSettingsRoutes from './src/routes/platformSettings.js';
 import projectSettingsRoutes from './src/routes/projectSettings.js';
+import userRoutes from './src/routes/user.js';
 import {
     getWorkspacePlan,
     checkProjectLimit,
@@ -35,7 +39,6 @@ import {
     getAiAccessLevel,
     upgradeWorkspace
 } from './billing.js';
-import { logActivity } from './src/services/activityLogger.js';
 
 dotenv.config();
 
@@ -620,7 +623,7 @@ app.post('/feedback/submit', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 const SYSTEM_PROMPT = `You are a senior backend engineer and database architect.
 Your task is to explain a database schema clearly and accurately.
@@ -719,6 +722,9 @@ app.get('/favicon.ico', (req, res) => {
     res.status(204).end();
 });
 
+// User Identity Routes (Universal Username System)
+app.use('/api', userRoutes);
+
 // Intelligence Routes
 app.use('/api/schema', schemaReviewRoutes);
 app.use('/api/schema', onboardingGuideRoutes);
@@ -730,6 +736,12 @@ app.use('/api/dashboard', dashboardRoutes);
 // Team Invite System Routes
 app.use('/api/team', teamRoutes);
 
+// Workspace Member Management Routes (Role Management System)
+app.use('/api/workspace', workspaceRoutes);
+
+// Platform & Settings Routes
+app.use('/api/settings', platformSettingsRoutes);
+app.use('/api/settings/project', projectSettingsRoutes);
 
 // --- ROUTES ---
 /**
@@ -1422,16 +1434,7 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
 
         console.log(`[Schema Ingestion] Success! Version ${nextVersion} created`);
 
-        if (user_id && workspaceId) {
-            await logActivity({
-                workspaceId,
-                userId: user_id,
-                actionType: 'schema_version_added',
-                entityType: 'schema',
-                entityName: `v${nextVersion}`,
-                metadata: { project_name: project.name }
-            });
-        }
+
 
         res.json({
             success: true,
@@ -1752,20 +1755,7 @@ app.put('/projects/:id/normalized-schema', requireProjectContext, async (req, re
 
         if (error) throw error;
 
-        // Log Activity
-        if (req.body.user_id) {
-            const { data: proj } = await supabase.from('projects').select('workspace_id, name').eq('id', id).single();
-            if (proj) {
-                await logActivity({
-                    workspaceId: proj.workspace_id,
-                    userId: req.body.user_id,
-                    actionType: 'schema_version_added',
-                    entityType: 'schema',
-                    entityName: `v${nextVersion}`,
-                    metadata: { project_name: proj.name }
-                });
-            }
-        }
+
 
         res.json({ success: true, version: nextVersion });
     } catch (err: any) {
@@ -1995,6 +1985,13 @@ app.delete('/projects/:id/team/:type/:itemId', requireProjectContext, async (req
 app.use('/api/settings', platformSettingsRoutes);
 app.use('/api/project-settings', projectSettingsRoutes);
 
-app.listen(PORT, () => {
+// Create HTTP server for Socket.IO integration
+const httpServer = createServer(app);
+
+// Initialize collaboration server
+initializeCollaboration(httpServer, supabase);
+
+httpServer.listen(PORT, () => {
     console.log(`Backend running on http://localhost:${PORT}`);
+    console.log(`WebSocket collaboration enabled`);
 });

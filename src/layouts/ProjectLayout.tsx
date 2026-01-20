@@ -7,6 +7,8 @@ import { Logo } from '../components/VizoraLogo';
 import { LoadingSection } from '../components/LoadingSection';
 
 import { FeedbackButton } from '../components/beta/FeedbackButton';
+import { CollaborationProvider } from '../context/CollaborationContext';
+import { WorkspaceChatWrapper } from '../components/chat/WorkspaceChatWrapper';
 
 interface ProjectLayoutProps {
     children: ReactNode;
@@ -68,14 +70,21 @@ export function ProjectLayout({ children }: ProjectLayoutProps) {
             {/* Layout Spacer for Fixed Sidebar - Col 1 */}
             <div className="hidden lg:block w-[270px] shrink-0" />
 
+
+
             {/* Main Content Area - Col 2 */}
             <main className="flex-1 w-full relative overflow-y-auto">
-                <div className="min-h-[calc(100vh-2rem)] w-full">
-                    {children}
-                </div>
+                <CollaborationProvider>
+                    <div className="min-h-[calc(100vh-2rem)] w-full relative">
+                        {children}
+                        <WorkspaceChatWrapper />
+                    </div>
+                </CollaborationProvider>
             </main>
 
             <FeedbackButton />
         </div>
     );
 }
+
+

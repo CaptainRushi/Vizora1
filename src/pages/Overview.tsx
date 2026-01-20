@@ -63,7 +63,7 @@ export function Overview() {
                     .eq('project_id', projectId),
                 supabase
                     .from('schema_versions')
-                    .select('version, created_at')
+                    .select('version, created_at, created_by_username')
                     .eq('project_id', projectId)
                     .order('version', { ascending: false })
                     .limit(5)

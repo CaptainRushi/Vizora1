@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Check, Shield, Zap, Users, Sparkles, AlertCircle, CreditCard } from 'lucide-react';
 import { useOptimizedFetch } from '../hooks/useOptimizedFetch';
+import { useWorkspaceRole } from '../hooks/useWorkspaceRole';
 import { LoadingSection } from '../components/LoadingSection';
 
 interface BillingPlan {
@@ -32,26 +33,9 @@ interface WorkspaceUsage {
 }
 
 export function Billing() {
-    const { user } = useAuth();
-    const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
-
-    // Fetch user's workspace
-    const fetchWorkspace = useCallback(async () => {
-        if (!user) return null;
-
-        const { data, error } = await supabase
-            .from('workspaces')
-            .select('id')
-            .eq('owner_id', user.id)
-            .single();
-
-        if (error) {
-            console.error('Workspace fetch error:', error);
-            return null;
-        }
-
-        return data;
-    }, [user]);
+    const { identity } = useAuth();
+    const currentWorkspaceId = identity?.workspace_id || null;
+    const { isAdmin, loading: roleLoading } = useWorkspaceRole({ workspaceId: currentWorkspaceId });
 
     // Fetch billing plans
     const fetchPlans = useCallback(async () => {
@@ -119,23 +103,26 @@ export function Billing() {
         { enabled: !!currentWorkspaceId }
     );
 
-    // Load workspace on mount
-    useEffect(() => {
-        if (user) {
-            fetchWorkspace().then(workspace => {
-                if (workspace) {
-                    setCurrentWorkspaceId(workspace.id);
-                }
-            });
-        }
-    }, [user, fetchWorkspace]);
-
-
-    const loading = plansLoading || billingLoading || usageLoading;
+    const loading = plansLoading || billingLoading || usageLoading || roleLoading;
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <LoadingSection title="Loading Billing..." subtitle="Accessing your subscription status and usage metrics." />
+            </div>
+        );
+    }
+
+    if (!isAdmin && currentWorkspaceId) {
+        return (
+            <div className="mx-auto max-w-7xl pt-20 text-center space-y-6">
+                <div className="mx-auto w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+                    <Shield className="h-8 w-8" />
+                </div>
+                <h2 className="text-2xl font-black text-gray-900">Access Denied</h2>
+                <p className="text-gray-500 max-w-md mx-auto">
+                    Only workspace administrators can view billing information and manage subscriptions.
+                    Please contact your workspace admin for access.
+                </p>
             </div>
         );
     }

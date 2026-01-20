@@ -1,7 +1,10 @@
 import { ReactNode, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { GlobalSidebar } from '../components/GlobalSidebar';
 import { Menu, X } from 'lucide-react';
 import { Logo } from '../components/VizoraLogo';
+import { CollaborationProvider } from '../context/CollaborationContext';
+import { WorkspaceChatWrapper } from '../components/chat/WorkspaceChatWrapper';
 
 import { FeedbackButton } from '../components/beta/FeedbackButton';
 
@@ -11,6 +14,10 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const location = useLocation();
+
+    // Hide feedback button on workspace editor to prevent overlap with editor controls
+    const isWorkspaceEditor = location.pathname.match(/^\/workspaces\/[^/]+$/);
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-slate-950 lg:grid lg:grid-cols-[72px_1fr] flex flex-col">
@@ -47,12 +54,16 @@ export function MainLayout({ children }: MainLayoutProps) {
 
             {/* Main Content - Col 2 */}
             <main className="flex-1 w-full relative overflow-y-auto">
-                <div className="min-h-[calc(100vh-2rem)] w-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:20px_20px]">
-                    {children}
-                </div>
+                <CollaborationProvider>
+                    <div className="min-h-full w-full">
+                        {children}
+                        {isWorkspaceEditor && <WorkspaceChatWrapper />}
+                    </div>
+                </CollaborationProvider>
             </main>
 
-            <FeedbackButton />
+            {/* Hide feedback button on workspace editor to avoid overlap */}
+            {!isWorkspaceEditor && <FeedbackButton />}
         </div>
     );
 }

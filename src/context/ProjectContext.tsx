@@ -10,6 +10,7 @@ interface Project {
     status: 'active' | 'archived';
     schema_type: string;
     current_step: string;
+    workspace_id: string;
     created_at: string;
 }
 

@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 interface Version {
     version: number;
     created_at: string;
+    created_by_username?: string;
 }
 
 interface Props {
@@ -34,6 +35,13 @@ export function VersionTimeline({ versions, onVersionClick }: Props) {
                                     <ChevronRight className="h-3 w-3 text-gray-300 group-hover:text-indigo-600 transition-colors" />
                                 </div>
                                 <div className="text-[11px] font-bold text-gray-900 truncate">Version {v.version} Capture</div>
+
+                                {/* Attribution - ASCII Style */}
+                                {v.created_by_username && (
+                                    <div className="mt-1.5 font-mono text-[10px] text-gray-400">
+                                        └── edited by <span className="text-indigo-500">@{v.created_by_username}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))

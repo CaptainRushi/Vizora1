@@ -13,7 +13,7 @@
 import express from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-import { logActivity } from '../services/activityLogger.js';
+
 
 const router = express.Router();
 
@@ -106,12 +106,11 @@ router.post('/invite-link', async (req, res) => {
             });
         }
 
-        // Validate role
-        const validRoles = ['member', 'admin'];
-        if (!validRoles.includes(role)) {
+        // Validate role (3-role system: admin, member, viewer)
+        if (!['admin', 'member', 'viewer'].includes(role)) {
             return res.status(400).json({
                 error: 'Invalid role',
-                message: 'Role must be "member" or "admin".'
+                message: 'Role must be "admin", "member", or "viewer".'
             });
         }
 
@@ -148,18 +147,7 @@ router.post('/invite-link', async (req, res) => {
 
         if (insertError) throw insertError;
 
-        // Log activity
-        await logActivity({
-            workspaceId: workspace_id,
-            userId,
-            actionType: 'invite_link_created',
-            entityType: 'team',
-            metadata: {
-                role,
-                expires_in_days,
-                invite_id: invite.id
-            }
-        });
+
 
         // Construct join URL
         const baseUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://vizora.app';
@@ -231,16 +219,7 @@ router.post('/invite-link/revoke', async (req, res) => {
 
         if (updateError) throw updateError;
 
-        // Log activity
-        await logActivity({
-            workspaceId: workspace_id,
-            userId,
-            actionType: 'invite_link_revoked',
-            entityType: 'team',
-            metadata: {
-                invite_id: invite_id || 'all'
-            }
-        });
+
 
         res.json({
             success: true,
@@ -457,17 +436,7 @@ router.post('/join', rateLimit(10, 60000), async (req, res) => {
             .update({ used_count: (invite.used_count || 0) + 1 })
             .eq('id', invite.id);
 
-        // Log activity
-        await logActivity({
-            workspaceId: invite.workspace_id,
-            userId,
-            actionType: 'team_member_joined',
-            entityType: 'team',
-            metadata: {
-                role: invite.role,
-                invite_id: invite.id
-            }
-        });
+
 
         res.json({
             success: true,

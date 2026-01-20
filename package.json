@@ -12,6 +12,7 @@
     "start": "npm start --prefix server"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-popover": "^1.1.15",
@@ -22,14 +23,21 @@
     "cmdk": "^1.1.1",
     "command-score": "^0.1.2",
     "dagre": "^0.8.5",
+    "diff": "^8.0.3",
     "framer-motion": "^12.26.1",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.344.0",
+    "monaco-editor": "^0.55.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.6.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.11.0",
     "reactflow": "^11.11.4",
-    "tailwind-merge": "^3.4.0"
+    "socket.io-client": "^4.8.3",
+    "tailwind-merge": "^3.4.0",
+    "y-monaco": "^0.1.6",
+    "yjs": "^13.6.29"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

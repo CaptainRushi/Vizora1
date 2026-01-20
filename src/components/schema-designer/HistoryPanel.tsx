@@ -1,6 +1,6 @@
 
-import { motion } from 'framer-motion';
-import { X, RotateCcw, ChevronRight, Hash } from 'lucide-react';
+import { motion, useDragControls } from 'framer-motion';
+import { X, RotateCcw, ChevronRight, Hash, Clock } from 'lucide-react';
 import { UnifiedSchema } from '../../lib/schema-types';
 
 interface HistoryPanelProps {
@@ -18,23 +18,43 @@ export function HistoryPanel({
 }: HistoryPanelProps) {
     // We combine history and current for the list
     const allVersions = [...history, currentSchema].reverse();
+    const dragControls = useDragControls();
 
     return (
         <motion.div
+            drag
+            dragControls={dragControls}
+            dragListener={false}
+            dragMomentum={false}
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="absolute top-24 right-8 w-[380px] max-h-[70vh] bg-white/90 backdrop-blur-xl border border-slate-200/60 rounded-[2.5rem] flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.1)] z-[100] overflow-hidden"
+            className="fixed top-24 right-8 w-[380px] max-h-[75vh] bg-white/80 backdrop-blur-2xl border border-white/20 rounded-[2.5rem] flex flex-col shadow-[0_30px_90px_rgba(0,0,0,0.15)] z-[100] overflow-hidden"
         >
-            <div className="h-16 border-b border-slate-100 flex items-center justify-between px-6 bg-gradient-to-r from-slate-50/50 to-white">
-                <div className="flex flex-col">
-                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em]">Session History</span>
-                    <h2 className="text-base font-black text-slate-800 tracking-tight">Timeline</h2>
+            <div
+                onPointerDown={(e) => dragControls.start(e)}
+                className="h-16 border-b border-slate-100/50 flex items-center justify-between px-6 bg-gradient-to-r from-slate-50/80 to-white/80 cursor-grab active:cursor-grabbing select-none"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                        <Clock className="w-4 h-4 text-indigo-500" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] leading-none mb-1">Session History</span>
+                        <h2 className="text-sm font-black text-slate-800 tracking-tight">Timeline</h2>
+                    </div>
                 </div>
-                <button onClick={onClose} className="p-2 bg-slate-100/50 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
-                    <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-center gap-0.5 mr-2 opacity-20 transition-opacity">
+                        <div className="w-4 h-0.5 bg-slate-400 rounded-full" />
+                        <div className="w-4 h-0.5 bg-slate-400 rounded-full" />
+                        <div className="w-4 h-0.5 bg-slate-400 rounded-full" />
+                    </div>
+                    <button onClick={onClose} className="p-2.5 bg-slate-200/50 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-all">
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">

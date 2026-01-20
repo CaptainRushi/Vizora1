@@ -230,6 +230,81 @@ export function LandingPage() {
                     </div>
                 </section>
 
+                {/* 5.5. TEAM WORKSPACES (NEW FEATURE) */}
+                <section className="app-section bg-slate-50 border-t border-slate-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-1/3 h-full bg-indigo-50/50 skew-x-12 translate-x-32" />
+                    <div className="app-container relative z-10">
+                        <div className="flex flex-col lg:flex-row items-center gap-16 lg:gap-24">
+                            <div className="lg:w-1/2">
+                                <span className="text-indigo-600 font-black text-xs uppercase tracking-[0.2em] mb-4 block">New Feature</span>
+                                <h2 className="text-slate-900 mb-6 font-black tracking-tight text-3xl sm:text-4xl">
+                                    Built for Teams,<br />
+                                    Designed for Focus.
+                                </h2>
+                                <p className="text-lg text-slate-500 mb-8 leading-relaxed font-medium">
+                                    Stop sharing schemas via Slack snippets. Vizora Workspaces brings your team's database knowledge into a single, organized hub.
+                                </p>
+
+                                <div className="space-y-6">
+                                    {[
+                                        { title: "Unified Context", desc: "One home for all your projects and schemas." },
+                                        { title: "Role-Based Access", desc: "Admin and Member roles for secure management." },
+                                        { title: "Solo or Squad", desc: "Seamlessly switch between personal and team spaces." }
+                                    ].map((feature, i) => (
+                                        <div key={i} className="flex gap-4 group">
+                                            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center shrink-0 group-hover:border-indigo-300 group-hover:bg-indigo-50 transition-all">
+                                                <Users className="w-5 h-5 text-indigo-500" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-900 text-sm mb-1">{feature.title}</h4>
+                                                <p className="text-sm text-slate-500">{feature.desc}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="lg:w-1/2 w-full">
+                                <div className="relative">
+                                    <div className="absolute -inset-4 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-[2rem] opacity-10 blur-xl" />
+                                    <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xl relative overflow-hidden">
+                                        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                                                    V
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-slate-900">Vizora Team</div>
+                                                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Enterprise Workspace</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex -space-x-2">
+                                                {[1, 2, 3, 4].map((i) => (
+                                                    <div key={i} className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-500">
+                                                        {i === 4 ? '+' : 'U'}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3 opacity-60">
+                                            <div className="h-4 w-1/3 bg-slate-100 rounded-full" />
+                                            <div className="h-24 w-full bg-slate-50 rounded-xl border border-slate-100" />
+                                            <div className="h-24 w-full bg-slate-50 rounded-xl border border-slate-100" />
+                                        </div>
+
+                                        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent flex items-end justify-center pb-8">
+                                            <div className="px-6 py-2 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold border border-indigo-100 shadow-sm animate-pulse">
+                                                Admin & Member Roles Live
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {/* 6. HOW IT WORKS (STEPS) */}
                 <section className="app-section bg-slate-50">
                     <div className="app-container">

@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { AboutBetaModal } from '../components/beta/AboutBetaModal';
 import { FeedbackNudge } from '../components/beta/FeedbackNudge';
 import { api } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import { useWorkspaceRole } from '../hooks/useWorkspaceRole';
 import { LoadingSection } from '../components/LoadingSection';
 
 interface Project {
@@ -21,7 +23,12 @@ interface Project {
 
 export function Projects() {
     const navigate = useNavigate();
+    const { identity } = useAuth();
     const { projectId: currentProjectId, switchProject } = useProject();
+
+    // Workspace & Role state
+    const workspaceId = identity?.workspace_id || null;
+    const { isAdmin, loading: roleLoading } = useWorkspaceRole({ workspaceId });
 
     // New Project Form
     const [newName, setNewName] = useState('');
@@ -38,7 +45,7 @@ export function Projects() {
         return data || [];
     }, []);
 
-    const { data, loading, refetch } = useOptimizedFetch<Project[]>(
+    const { data, loading: projectsLoading, refetch } = useOptimizedFetch<Project[]>(
         'projects-list',
         fetchProjects,
         { cacheTime: 2 * 60 * 1000 } // Cache for 2 minutes
@@ -46,6 +53,8 @@ export function Projects() {
 
     // Ensure projects is always an array
     const projects: Project[] = data ?? [];
+
+    const loading = projectsLoading || roleLoading;
 
 
     const handleCreate = async () => {
@@ -59,26 +68,33 @@ export function Projects() {
             if (userError || !user) throw new Error('Not authenticated');
 
             // Get user's workspace
-            const { data: workspace, error: workspaceError } = await supabase
-                .from('workspaces')
-                .select('id')
-                .eq('owner_id', user.id)
-                .single();
+            let targetWorkspaceId = workspaceId;
 
-            if (workspaceError || !workspace) {
-                throw new Error('No workspace found. Please complete onboarding first.');
+            // Fallback: If context is somehow missing workspace_id (rare race condition on fresh login)
+            if (!targetWorkspaceId) {
+                console.warn('[Projects] Workspace ID missing from context, attempting fetch...');
+                try {
+                    const freshIdentity = await api.user.getMe(user.id);
+                    if (freshIdentity?.workspace_id) {
+                        targetWorkspaceId = freshIdentity.workspace_id;
+                    }
+                } catch (fetchErr) {
+                    console.error('[Projects] Failed to fetch identity backup:', fetchErr);
+                }
+            }
+
+            if (!targetWorkspaceId) {
+                throw new Error('Workspace not initialized. Please refresh the page or go to your account to set up a workspace.');
             }
 
             // Create Project via Backend API (Enforces limits)
-
-            // Create Project via Backend API (Enforces limits)
-            const project = await api.createProject(newName, newType, workspace.id, user.id);
+            const project = await api.createProject(newName, newType, targetWorkspaceId, user.id);
 
             console.log('Project created:', project);
 
             // Invalidate cache to show new project
             invalidateCache('projects-list');
-            invalidateCache(`workspace-usage-${workspace.id}`);
+            invalidateCache(`workspace-usage-${targetWorkspaceId}`);
 
             // Navigate to workspace-scoped schema input
             navigate(`/workspace/${project.id}/schema-input`);
@@ -98,6 +114,10 @@ export function Projects() {
     };
 
     const handleDelete = async (id: string) => {
+        if (!isAdmin) {
+            alert("Only workspace admins can delete projects.");
+            return;
+        }
         if (!confirm("Are you sure? This will delete all versions, documentation, and metadata for this project. This action is irreversible.")) return;
         try {
             console.log(`[Projects] Requesting deletion for project: ${id}`);
@@ -302,16 +322,18 @@ export function Projects() {
                                             </div>
                                         </div>
 
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDelete(p.id);
-                                            }}
-                                            className="absolute bottom-6 right-6 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                            title="Delete Project"
-                                        >
-                                            <Trash2 className="h-5 w-5" />
-                                        </button>
+                                        {isAdmin && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDelete(p.id);
+                                                }}
+                                                className="absolute bottom-6 right-6 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                                title="Delete Project"
+                                            >
+                                                <Trash2 className="h-5 w-5" />
+                                            </button>
+                                        )}
                                     </div>
                                 );
                             })}

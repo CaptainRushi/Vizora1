@@ -18,10 +18,55 @@ router.get('/:projectId', async (req, res) => {
             supabase.from('projects').select('*').eq('id', projectId).single(),
             supabase.from('project_schema_settings').select('*').eq('project_id', projectId).maybeSingle(),
             supabase.from('project_intelligence_settings').select('*').eq('project_id', projectId).maybeSingle(),
-            supabase.from('project_members').select('*').eq('project_id', projectId)
+            supabase.from('project_members')
+                .select('*')
+                .eq('project_id', projectId)
         ]);
 
         if (projectRes.error) throw projectRes.error;
+
+        const rawMembers = membersRes.data || [];
+        const ownerId = projectRes.data.owner_id;
+
+        // 1. Gather all User IDs (members + owner)
+        const memberIds = rawMembers.map((m: any) => m.user_id);
+        const allUserIds = Array.from(new Set([...memberIds, ownerId].filter(Boolean)));
+
+        // 2. Fetch Profiles for all involved users
+        const { data: profiles } = await supabase
+            .from('users')
+            .select('id, username, display_name')
+            .in('id', allUserIds);
+
+        // 3. Map members with profile data
+        const members = rawMembers.map((m: any) => {
+            const p = profiles?.find((prof: any) => prof.id === m.user_id);
+            return {
+                ...m,
+                profile: p ? {
+                    id: p.id,
+                    username: p.username,
+                    display_name: p.display_name
+                } : null
+            };
+        });
+
+        // 4. Ensure Owner is in the list
+        const ownerInMembers = members.find((m: any) => m.user_id === ownerId);
+
+        if (!ownerInMembers && ownerId) {
+            const ownerProfile = profiles?.find((p: any) => p.id === ownerId);
+            members.unshift({
+                project_id: projectId,
+                user_id: ownerId,
+                role: 'owner',
+                profile: ownerProfile ? {
+                    id: ownerProfile.id,
+                    username: ownerProfile.username,
+                    display_name: ownerProfile.display_name
+                } : null
+            });
+        }
 
         res.json({
             general: {
@@ -40,7 +85,7 @@ router.get('/:projectId', async (req, res) => {
                 auto_review: true,
                 auto_onboarding: true
             },
-            members: membersRes.data || []
+            members: members
         });
     } catch (err: any) {
         console.error('Get project settings error:', err);

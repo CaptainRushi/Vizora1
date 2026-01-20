@@ -13,7 +13,9 @@ import ReactFlow, {
     useReactFlow
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Download, Sun, Moon, Maximize, Eye, EyeOff, Share2, RefreshCw, Key, Link as LinkIcon, Info } from 'lucide-react';
+import { Download, Sun, Moon, Maximize, Eye, EyeOff, Share2, RefreshCw, Key, Link as LinkIcon, Info, Image, ChevronDown } from 'lucide-react';
+import { toPng, toJpeg } from 'html-to-image';
+import toast from 'react-hot-toast';
 import dagre from 'dagre';
 import { useProjectContext } from '../context/ProjectContext';
 import { MacDots } from '../components/MacDots';
@@ -364,6 +366,80 @@ const ERDiagramsContent = () => {
         })));
     }, [setEdges, setNodes]);
 
+    const [showExportOptions, setShowExportOptions] = useState(false);
+
+    // Export Diagram with Save As dialog
+    const handleExport = useCallback(async (format: 'png' | 'jpg') => {
+        const element = document.querySelector('.react-flow') as HTMLElement;
+        if (!element) return;
+
+        const toastId = toast.loading(`Generating ${format.toUpperCase()} image...`);
+        const exporter = format === 'png' ? toPng : toJpeg;
+
+        try {
+            const dataUrl = await exporter(element, {
+                backgroundColor: isDarkMode ? '#0f172a' : '#fafafa',
+                quality: 0.95,
+                style: {
+                    transform: 'scale(1)',
+                    transformOrigin: 'top left',
+                },
+                filter: (node: any) => {
+                    // Hide UI controls in the export
+                    if (
+                        node?.classList?.contains('react-flow__controls') ||
+                        node?.classList?.contains('react-flow__attribution') ||
+                        node?.classList?.contains('react-flow__minimap') ||
+                        node?.classList?.contains('lucide')
+                    ) {
+                        return false;
+                    }
+                    return true;
+                },
+            });
+
+            const fileName = `vizora-er-diagram-${projectId || 'export'}.${format}`;
+
+            // Try File System Access API for "Save As" dialog (Chrome/Edge)
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const blob = await (await fetch(dataUrl)).blob();
+                    const handle = await (window as any).showSaveFilePicker({
+                        suggestedName: fileName,
+                        types: [{
+                            description: format === 'png' ? 'PNG Image' : 'JPEG Image',
+                            accept: { [format === 'png' ? 'image/png' : 'image/jpeg']: [`.${format}`] }
+                        }]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    toast.success(`ER Diagram saved as ${format.toUpperCase()}`, { id: toastId });
+                    setShowExportOptions(false);
+                    return;
+                } catch (err: any) {
+                    // User cancelled the dialog or API not fully supported
+                    if (err.name === 'AbortError') {
+                        toast.dismiss(toastId);
+                        return;
+                    }
+                    // Fall through to standard download
+                }
+            }
+
+            // Fallback: Standard download
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = dataUrl;
+            link.click();
+            toast.success(`ER Diagram exported as ${format.toUpperCase()}`, { id: toastId });
+            setShowExportOptions(false);
+        } catch (err: any) {
+            console.error('Export Error:', err);
+            toast.error('Failed to export image', { id: toastId });
+        }
+    }, [projectId, isDarkMode]);
+
     // Auto-load diagram on mount and when projectId changes
     // This ensures fresh data every time user navigates to this page
     useEffect(() => {
@@ -381,9 +457,39 @@ const ERDiagramsContent = () => {
                     onClick={loadDiagram}
                     disabled={loading}
                     className="p-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 transition-colors"
+                    title="Refresh Diagram"
                 >
                     <RefreshCw className={`h-4 w-4 text-slate-600 ${loading ? 'animate-spin' : ''}`} />
                 </button>
+                <div className="relative">
+                    <button
+                        onClick={() => setShowExportOptions(!showExportOptions)}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 transition-all font-black text-[10px] uppercase tracking-widest text-slate-600"
+                    >
+                        <Image className="h-4 w-4 text-indigo-500" />
+                        Download Diagram
+                        <ChevronDown className={`h-3 w-3 transition-transform ${showExportOptions ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showExportOptions && (
+                        <div className="absolute top-full mt-2 right-0 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-[100] min-w-[120px] animate-in fade-in slide-in-from-top-2 duration-200">
+                            <button
+                                onClick={() => handleExport('png')}
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between group"
+                            >
+                                PNG Image
+                                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[8px] text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-colors">HD</span>
+                            </button>
+                            <button
+                                onClick={() => handleExport('jpg')}
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between group"
+                            >
+                                JPG Image
+                                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[8px] text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-colors">Fast</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <ReactFlow
@@ -418,9 +524,9 @@ const ERDiagramsContent = () => {
                         { label: showLabels ? 'Hide Labels' : 'Show Labels', onClick: () => setShowLabels(!showLabels), icon: showLabels ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" /> },
                         { label: isDarkMode ? 'Switch to Light' : 'Switch to Dark', onClick: () => setIsDarkMode(!isDarkMode), icon: isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" /> },
                         {
-                            label: 'Export Diagram (PNG)', onClick: () => {
-                                alert('Exporting diagram...');
-                            }, icon: <Download className="h-4 w-4" />
+                            label: 'Export Diagram (PNG)',
+                            onClick: () => handleExport('png'),
+                            icon: <Download className="h-4 w-4" />
                         },
                         { label: 'Reset Zoom', onClick: () => fitView({ duration: 800 }), icon: <RefreshCw className="h-4 w-4" /> },
                     ]}

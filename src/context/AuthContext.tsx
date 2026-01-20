@@ -3,11 +3,25 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { supabase } from '../lib/supabase';
 import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+export interface UserIdentity {
+    id: string;
+    username: string;
+    display_name: string | null;
+    email: string;
+    workspace_id: string | null;
+    role: string | null;
+    created_at: string;
+}
+
 interface AuthContextType {
     session: Session | null;
     user: User | null;
+    identity: UserIdentity | null;
     loading: boolean;
     signOut: () => Promise<void>;
+    refreshIdentity: (userId?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -15,8 +29,42 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
+    const [identity, setIdentity] = useState<UserIdentity | null>(null);
     const [loading, setLoading] = useState(true);
     const initializationStarted = useRef(false);
+
+    const refreshIdentity = async (userId?: string) => {
+        const id = userId || user?.id;
+        if (!id) {
+            setIdentity(null);
+            return;
+        }
+
+        try {
+            // Fetch from authoritative backend endpoint
+            const response = await fetch(`${API_URL}/api/me`, {
+                headers: {
+                    'x-user-id': id
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch identity');
+            }
+
+            const data = await response.json();
+            setIdentity(data);
+        } catch (err) {
+            console.error('[AuthContext] Identity fetch error:', err);
+            // Even on error, we don't use fallbacks. Truth is absolute.
+        }
+    };
+
+    useEffect(() => {
+        if (user?.id) {
+            refreshIdentity(user.id);
+        }
+    }, [user?.id]);
 
     useEffect(() => {
         // Prevent multiple simultaneous initializations
@@ -86,12 +134,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } finally {
             setSession(null);
             setUser(null);
+            setIdentity(null);
             setLoading(false);
         }
     };
 
     return (
-        <AuthContext.Provider value={{ session, user, loading, signOut }}>
+        <AuthContext.Provider value={{ session, user, identity, loading, signOut, refreshIdentity }}>
             {children}
         </AuthContext.Provider>
     );

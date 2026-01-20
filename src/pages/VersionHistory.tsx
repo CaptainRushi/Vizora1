@@ -5,6 +5,7 @@ import { History, Calendar, ChevronRight, X, Copy, Check, Terminal } from 'lucid
 import { generateSql, type NormalizedSchema } from '../lib/generators';
 import { useOptimizedFetch } from '../hooks/useOptimizedFetch';
 import { LoadingSection } from '../components/LoadingSection';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Version {
     version: number;
@@ -150,45 +151,70 @@ export function VersionHistory() {
             </div>
 
             {/* Code Viewer Modal */}
-            {viewingCode && (
-                <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-500 slide-in-from-bottom-4 h-[80vh]">
-                        <div className="p-5 border-b flex justify-between items-center bg-slate-50">
-                            <div className="flex items-center gap-4">
-                                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                                    <Terminal className="h-4 w-4" />
+            <AnimatePresence>
+                {viewingCode && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+                        onClick={() => {
+                            setViewingCode(null);
+                            setViewingVersion(null);
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                            transition={{
+                                type: 'spring',
+                                stiffness: 350,
+                                damping: 25,
+                                mass: 0.5
+                            }}
+                            style={{ willChange: 'transform, opacity' }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden h-[80vh]"
+                        >
+                            <div className="p-5 border-b flex justify-between items-center bg-slate-50">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                                        <Terminal className="h-4 w-4" />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                        <h3 className="font-bold text-slate-800 uppercase tracking-wider text-xs">Snapshot v{viewingVersion}</h3>
+                                        <p className="text-[10px] text-slate-400 font-medium">Generated SQL Source</p>
+                                    </div>
                                 </div>
-                                <div className="space-y-0.5">
-                                    <h3 className="font-bold text-slate-800 uppercase tracking-wider text-xs">Snapshot v{viewingVersion}</h3>
-                                    <p className="text-[10px] text-slate-400 font-medium">Generated SQL Source</p>
-                                </div>
-                            </div>
 
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={handleCopy}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${copied ? 'bg-green-100 text-green-700' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                                >
-                                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                                    {copied ? 'Copied' : 'Copy'}
-                                </button>
-                                <button
-                                    className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600"
-                                    onClick={() => {
-                                        setViewingCode(null);
-                                        setViewingVersion(null);
-                                    }}
-                                >
-                                    <X className="h-5 w-5" />
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={handleCopy}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${copied ? 'bg-green-100 text-green-700' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                        {copied ? 'Copied' : 'Copy'}
+                                    </button>
+                                    <button
+                                        className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+                                        onClick={() => {
+                                            setViewingCode(null);
+                                            setViewingVersion(null);
+                                        }}
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        <pre className="flex-1 p-8 overflow-auto font-mono text-sm bg-slate-900 text-indigo-100 leading-relaxed custom-scrollbar">
-                            {viewingCode}
-                        </pre>
-                    </div>
-                </div>
-            )}
+                            <pre className="flex-1 p-8 overflow-auto font-mono text-sm bg-slate-900 text-indigo-100 leading-relaxed custom-scrollbar">
+                                {viewingCode}
+                            </pre>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

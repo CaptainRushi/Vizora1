@@ -260,7 +260,10 @@
   .no-print,
   button,
   .feedback-button,
-  .beta-watermark {
+  .beta-watermark,
+  .workspace-chat-wrapper,
+  [class*="fixed bottom"],
+  [class*="fixed right"] {
     display: none !important;
   }
 
@@ -281,6 +284,89 @@
     color: black !important;
     max-width: none !important;
   }
+}
+
+/* ============================
+   REACT FLOW STYLES
+   Premium connection animations
+============================ */
+
+/* Handle base styles with gradient */
+.react-flow__handle {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 0 0 2px white !important;
+}
+
+/* Source handle (right side - outgoing connections) */
+.react-flow__handle-right {
+  cursor: crosshair !important;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+}
+
+.react-flow__handle-right:hover {
+  transform: scale(1.6) !important;
+  box-shadow:
+    0 0 0 3px white,
+    0 0 20px rgba(99, 102, 241, 0.6),
+    0 0 40px rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Target handle (left side - incoming connections) */
+.react-flow__handle-left {
+  background: linear-gradient(135deg, #64748b, #94a3b8) !important;
+}
+
+.react-flow__handle-left:hover {
+  transform: scale(1.6) !important;
+  background: linear-gradient(135deg, #10b981, #34d399) !important;
+  box-shadow:
+    0 0 0 3px white,
+    0 0 20px rgba(16, 185, 129, 0.6),
+    0 0 40px rgba(16, 185, 129, 0.3) !important;
+}
+
+/* Connecting state - magnetic effect */
+.react-flow__handle.connecting,
+.react-flow__handle.connectingto {
+  animation: handle-magnetic 0.6s ease-in-out infinite !important;
+}
+
+@keyframes handle-magnetic {
+
+  0%,
+  100% {
+    transform: scale(1.3);
+    box-shadow:
+      0 0 0 3px white,
+      0 0 15px rgba(99, 102, 241, 0.5);
+  }
+
+  50% {
+    transform: scale(1.6);
+    box-shadow:
+      0 0 0 4px white,
+      0 0 25px rgba(99, 102, 241, 0.7),
+      0 0 50px rgba(99, 102, 241, 0.4);
+  }
+}
+
+/* Connection line styling (while dragging) */
+.react-flow__connection-path {
+  stroke: url(#connection-gradient) !important;
+  stroke-width: 3 !important;
+  stroke-linecap: round !important;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.5));
+}
+
+/* Edge hover effect */
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3.5 !important;
+  filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.6));
+}
+
+/* Selected edge styling */
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3.5 !important;
 }
 
 /* ============================
@@ -585,6 +671,270 @@
 
 .ai-thinking {
   animation: thinkingPulse 1.2s ease-in-out infinite;
+}
+
+/* ============================
+   EDITOR PRESENCE STYLES
+   Remote cursor and selection
+   visualization for collaboration
+============================ */
+
+/* Remote cursor caret animation */
+@keyframes cursor-blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* Cursor glyph in gutter */
+.remote-cursor-glyph {
+  background: currentColor;
+  opacity: 0.3;
+  border-radius: 2px;
+}
+
+/* Base remote cursor indicator */
+.remote-cursor-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  animation: cursor-blink 1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.remote-cursor-idle::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  opacity: 0.3;
+  animation: none;
+  pointer-events: none;
+}
+
+/* User label styling base (colors are injected dynamically) */
+.remote-user-label-active,
+.remote-user-label-idle {
+  pointer-events: none;
+}
+
+/* Selection highlight styling base */
+.remote-selection-active {
+  pointer-events: none;
+}
+
+.remote-selection-idle {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Slide in from top animation for presence labels */
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.presence-label-appear {
+  animation: slideInFromTop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Fade out animation for idle cursors */
+@keyframes fadeToIdle {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.4;
+  }
+}
+
+.presence-idle-fade {
+  animation: fadeToIdle 300ms ease-out forwards;
+}
+
+/* ============================
+   CODE EDITOR ANIMATIONS
+   Lightweight, performant motion
+============================ */
+
+/* Editor loading spinner - simple rotation only */
+.editor-loading-spinner {
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Version history panel - simple slide */
+.panel-slide-in {
+  animation: panelIn 200ms ease-out forwards;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Version card - simple fade */
+.version-card {
+  animation: cardFade 150ms ease-out backwards;
+}
+
+.version-card:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.version-card:nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.version-card:nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.version-card:nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.version-card:nth-child(5) {
+  animation-delay: 120ms;
+}
+
+@keyframes cardFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Save button - no infinite animation, just transitions */
+.save-btn-ready {
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+
+.save-btn-ready:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+}
+
+.save-btn-ready:active {
+  transform: scale(0.98);
+}
+
+/* Modal backdrop - simple fade */
+.modal-backdrop-premium {
+  animation: backdropFade 150ms ease-out forwards;
+}
+
+@keyframes backdropFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal content - simple scale */
+.modal-content-premium {
+  animation: modalScale 180ms ease-out forwards;
+}
+
+@keyframes modalScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Diff view - simple fade */
+.diff-pane-enter {
+  animation: simpleFade 150ms ease-out;
+}
+
+@keyframes simpleFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Keyboard hint - static, no animation */
+.shortcut-hint {
+  opacity: 0.9;
+}
+
+/* Unsaved indicator - simple pulse, minimal */
+.unsaved-indicator {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Version badge - simple appear */
+.version-badge-new {
+  animation: badgeIn 200ms ease-out;
+}
+
+@keyframes badgeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* ============================
