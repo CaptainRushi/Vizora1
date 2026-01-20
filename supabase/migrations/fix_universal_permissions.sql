@@ -13,8 +13,10 @@ ALTER TABLE public.billing_accounts ENABLE ROW LEVEL SECURITY;
 
 -- 3. Create Permissive Policies (Since backend acts as admin, or user acts as self)
 -- Universal Users
+DROP POLICY IF EXISTS "Universal Users - View" ON universal_users;
 DROP POLICY IF EXISTS "Universal Users - View Self" ON universal_users;
 DROP POLICY IF EXISTS "Universal Users - Update Self" ON universal_users;
+DROP POLICY IF EXISTS "Universal Users - Insert" ON universal_users;
 DROP POLICY IF EXISTS "Universal Users - Insert Self" ON universal_users;
 
 -- Allow reading yourself (or finding by username)
