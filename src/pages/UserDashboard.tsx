@@ -195,17 +195,56 @@ export function UserDashboard() {
             }
 
             // D. Workspace should exist from signup trigger
-            // If not found, log warning and attempt fresh fetch
+            // If not found, log warning and attempt CLIENT-SIDE creation as fallback
             if (!wsData) {
-                console.warn('[Dashboard] No workspace found - this shouldnt happen with auto-creation');
-                const freshIdentity = await api.user.getMe(user.id);
-                if (freshIdentity?.workspace_id) {
-                    const { data: w } = await supabase
+                console.warn('[Dashboard] No workspace found - attempting client-side auto-creation...');
+
+                try {
+                    const wsName = `${identityData.username || 'My'}'s Workspace`;
+
+                    // 1. Create Workspace
+                    const { data: newWs, error: wsError } = await supabase
                         .from('workspaces')
-                        .select('*')
-                        .eq('id', freshIdentity.workspace_id)
-                        .maybeSingle();
-                    wsData = w;
+                        .insert({
+                            name: wsName,
+                            type: 'personal',
+                            owner_id: user.id
+                        })
+                        .select()
+                        .single();
+
+                    if (wsError) throw wsError;
+
+                    if (newWs) {
+                        console.log('[Dashboard] Created fallback workspace:', newWs.id);
+
+                        // 2. Link to User
+                        await supabase
+                            .from('users')
+                            .update({ workspace_id: newWs.id, role: 'admin' })
+                            .eq('id', user.id);
+
+                        // 3. Initialize Billing/Usage/Members (Parallel)
+                        await Promise.allSettled([
+                            supabase.from('workspace_billing').insert({
+                                workspace_id: newWs.id,
+                                plan_id: 'free',
+                                start_at: new Date().toISOString()
+                            }),
+                            supabase.from('workspace_usage').insert({
+                                workspace_id: newWs.id
+                            }),
+                            supabase.from('workspace_members').insert({
+                                workspace_id: newWs.id,
+                                user_id: user.id,
+                                role: 'admin'
+                            })
+                        ]);
+
+                        wsData = newWs;
+                    }
+                } catch (err) {
+                    console.error('[Dashboard] Critical: Failed to auto-create workspace on client:', err);
                 }
             }
 
