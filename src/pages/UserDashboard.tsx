@@ -145,162 +145,70 @@ export function UserDashboard() {
     // ============================
     // DATA FETCHING
     // ============================
+    // ============================
+    // DATA FETCHING
+    // ============================
     const fetchDashboardData = useCallback(async () => {
         if (!user) return;
 
         setLoading(true);
         try {
-            // 1. Fetch Authoritative Identity
+            // 1. Fetch Authoritative Identity (Universal ID)
             const identityData = await api.user.getMe(user.id);
 
-            // 2. Fetch workspace first (existing logic for reliability)
-            let workspaceId: string | null = identityData.workspace_id;
-            let wsData = null;
+            // New: Identity Data now contains everything we need
+            // including universal_id (which acts as workspace_id for personal/personal-like workspaces)
+            // and workspace_name.
 
-            // 3. Robust Workspace Resolution Sequence
-            // A. Check assigned workspace
-            if (workspaceId) {
-                const { data: w } = await supabase
-                    .from('workspaces')
-                    .select('*')
-                    .eq('id', workspaceId)
-                    .maybeSingle();
-                wsData = w;
-            }
+            const universalId = identityData.universal_id;
 
-            // B. If not found, check OWNED workspaces
-            if (!wsData) {
-                const { data: ownedWs } = await supabase
-                    .from('workspaces')
-                    .select('*')
-                    .eq('owner_id', user.id)
-                    .order('created_at', { ascending: true }) // Stable choice (oldest)
-                    .limit(1)
-                    .maybeSingle();
-                wsData = ownedWs;
-            }
-
-            // C. If still not found, check MEMBER workspaces
-            if (!wsData) {
-                const { data: memberWs } = await supabase
-                    .from('workspace_members')
-                    .select('workspace_id, workspaces(*)')
-                    .eq('user_id', user.id)
-                    .limit(1)
-                    .maybeSingle();
-
-                if (memberWs?.workspaces) {
-                    wsData = memberWs.workspaces;
-                }
-            }
-
-            // D. Workspace should exist from signup trigger
-            // If not found, log warning and attempt CLIENT-SIDE creation as fallback
-            if (!wsData) {
-                console.warn('[Dashboard] No workspace found - attempting client-side auto-creation...');
-
-                try {
-                    const wsName = `${identityData.username || 'My'}'s Workspace`;
-
-                    // 1. Create Workspace
-                    const { data: newWs, error: wsError } = await supabase
-                        .from('workspaces')
-                        .insert({
-                            name: wsName,
-                            type: 'personal',
-                            owner_id: user.id
-                        })
-                        .select()
-                        .single();
-
-                    if (wsError) throw wsError;
-
-                    if (newWs) {
-                        console.log('[Dashboard] Created fallback workspace:', newWs.id);
-
-                        // 2. Link to User
-                        await supabase
-                            .from('users')
-                            .update({ workspace_id: newWs.id, role: 'admin' })
-                            .eq('id', user.id);
-
-                        // 3. Initialize Billing/Usage/Members (Parallel)
-                        await Promise.allSettled([
-                            supabase.from('workspace_billing').insert({
-                                workspace_id: newWs.id,
-                                plan_id: 'free',
-                                start_at: new Date().toISOString()
-                            }),
-                            supabase.from('workspace_usage').insert({
-                                workspace_id: newWs.id
-                            }),
-                            supabase.from('workspace_members').insert({
-                                workspace_id: newWs.id,
-                                user_id: user.id,
-                                role: 'admin'
-                            })
-                        ]);
-
-                        wsData = newWs;
-                    }
-                } catch (err) {
-                    console.error('[Dashboard] Critical: Failed to auto-create workspace on client:', err);
-                }
-            }
-
-            workspaceId = wsData?.id || null;
-
-            // 4. Sync Auth Identity if missing or changed
-            if (workspaceId && workspaceId !== identityData.workspace_id) {
-                console.log('[Dashboard] Syncing workspace link in user record...', workspaceId);
-                await supabase
-                    .from('users')
-                    .update({ workspace_id: workspaceId })
-                    .eq('id', user.id);
-            }
-
-            // Get member count
-            let memberCount = 1;
-            if (workspaceId) {
-                const { count } = await supabase
-                    .from('workspace_members')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('workspace_id', workspaceId);
-                memberCount = (count || 0) + 1;
-            }
-
+            // 2. Set Identity State (Minimal, derived from API)
             setIdentity({
                 user: {
-                    id: user.id,
+                    id: user.id, // Auth ID
                     username: identityData.username,
                     display_name: identityData.display_name,
-                    created_at: identityData.created_at
+                    created_at: new Date().toISOString() // Not returned by API me, usage irrelevant for display mostly
                 },
-                workspace: wsData ? {
-                    id: wsData.id,
-                    name: wsData.name,
-                    type: wsData.type as 'personal' | 'team',
-                    created_at: wsData.created_at,
-                    member_count: memberCount
-                } : null,
+                workspace: {
+                    id: universalId,
+                    name: identityData.workspace_name || "Personal Workspace",
+                    type: 'team', // We can default to team or 'personal' based on logic, but everything is a universal workspace now
+                    created_at: new Date().toISOString(),
+                    member_count: 1 // Will be updated by fetchTeamData if we fetch it
+                },
                 role: (identityData.role as 'admin' | 'member') || 'admin'
             });
 
-            // Parallel fetch remaining data if we have workspace
-            if (workspaceId) {
+            // 3. Fetch specific dashboard data using Universal ID
+            if (universalId) {
                 const [usageResult, teamResult, invitesResult] = await Promise.all([
-                    fetchUsageStats(workspaceId),
-                    fetchTeamData(workspaceId),
-                    (identityData.role === 'admin' || !identityData.role) ? fetchInvites(workspaceId) : Promise.resolve([])
+                    fetchUsageStats(universalId),
+                    fetchTeamData(universalId),
+                    (identityData.role === 'admin' || !identityData.role) ? fetchInvites(universalId) : Promise.resolve([])
                 ]);
 
                 setUsage(usageResult);
-                setTeam(teamResult);
+
+                // Update workspace member count from real data if available
+                if (teamResult) {
+                    setTeam(teamResult);
+                    setIdentity(prev => prev ? {
+                        ...prev,
+                        workspace: prev.workspace ? {
+                            ...prev.workspace,
+                            member_count: teamResult.members.length,
+                            type: teamResult.workspace_type
+                        } : null
+                    } : null);
+                }
+
                 setInvites(invitesResult);
             }
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
+            toast.error('Failed to load dashboard data');
         } finally {
             setLoading(false);
         }
@@ -356,55 +264,66 @@ export function UserDashboard() {
     };
 
     const fetchTeamData = async (workspaceId: string): Promise<TeamData> => {
-        const { data: workspace } = await supabase
-            .from('workspaces')
-            .select('owner_id, type')
-            .eq('id', workspaceId)
-            .single();
+        // 1. Fetch Owner from Universal Users
+        const { data: uUser } = await supabase
+            .from('universal_users')
+            .select('universal_id, username, display_name, auth_user_id')
+            .eq('universal_id', workspaceId)
+            .maybeSingle();
 
+        // 2. Fetch Members (Legacy / Shared Access)
         const { data: members } = await supabase
             .from('workspace_members')
             .select('id, user_id, role, created_at')
             .eq('workspace_id', workspaceId);
 
-        // Get profiles
+        // 3. Resolve Profiles
         const memberIds = members?.map(m => m.user_id) || [];
-        const allUserIds = [workspace?.owner_id, ...memberIds].filter(Boolean);
+        // Note: uUser.auth_user_id is the owner's Auth ID.
+        const allAuthIds = [...memberIds];
+        if (uUser?.auth_user_id) allAuthIds.push(uUser.auth_user_id);
 
-        const { data: profiles } = await supabase
-            .from('users')
-            .select('id, username, display_name')
-            .in('id', allUserIds);
+        let profiles: any[] = [];
+        if (allAuthIds.length > 0) {
+            const { data: p } = await supabase
+                .from('universal_users')
+                .select('auth_user_id, username, display_name')
+                .in('auth_user_id', allAuthIds);
+            profiles = p || [];
+        }
 
+        // 4. Build List
         const memberList: TeamMember[] = (members || []).map(m => {
-            const profile = profiles?.find(p => p.id === m.user_id);
+            const profile = profiles.find(p => p.auth_user_id === m.user_id);
             return {
                 id: m.id,
                 user_id: m.user_id,
                 username: profile?.username || null,
-                display_name: (profile as any)?.display_name || null,
+                display_name: profile?.display_name || null,
                 role: m.role as TeamMember['role'],
                 joined_at: m.created_at,
-                is_owner: m.user_id === workspace?.owner_id
+                is_owner: m.user_id === uUser?.auth_user_id
             };
         });
 
         // Add owner if not in members
-        if (workspace?.owner_id && !memberList.find(m => m.user_id === workspace.owner_id)) {
-            const ownerProfile = profiles?.find(p => p.id === workspace.owner_id);
-            memberList.unshift({
-                id: 'owner',
-                user_id: workspace.owner_id,
-                username: ownerProfile?.username || null,
-                display_name: (ownerProfile as any)?.display_name || null,
-                role: 'admin',
-                joined_at: null,
-                is_owner: true
-            });
+        if (uUser) {
+            const ownerInList = memberList.find(m => m.user_id === uUser.auth_user_id);
+            if (!ownerInList) {
+                memberList.unshift({
+                    id: 'owner',
+                    user_id: uUser.auth_user_id,
+                    username: uUser.username,
+                    display_name: uUser.display_name,
+                    role: 'admin',
+                    joined_at: null,
+                    is_owner: true
+                });
+            }
         }
 
         return {
-            workspace_type: (workspace?.type as any) || 'personal',
+            workspace_type: 'personal', // Universal workspaces are unified now, can treat as "personal" or "team" based on member count
             members: memberList
         };
     };

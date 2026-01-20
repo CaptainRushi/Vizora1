@@ -3,16 +3,19 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { supabase } from '../lib/supabase';
 import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
 
 export interface UserIdentity {
-    id: string;
-    username: string;
+    universal_id: string;
+    username: string | null;
     display_name: string | null;
     email: string;
-    workspace_id: string | null;
-    role: string | null;
-    created_at: string;
+    workspace_name: string | null;
+    has_completed_profile: boolean;
+    // Compatibility fields
+    role?: string | null;
+    workspace_id?: string | null;
 }
 
 interface AuthContextType {

@@ -3,7 +3,6 @@ import { useEffect, useState, lazy, Suspense } from 'react';
 import { MainLayout } from './layouts/MainLayout';
 import { ProjectLayout } from './layouts/ProjectLayout';
 import { useAuth } from './context/AuthContext';
-import { supabase } from './lib/supabase';
 import { BetaWatermark } from './components/BetaWatermark';
 import { ProjectProvider } from './context/ProjectContext';
 import { LoadingSection } from './components/LoadingSection';
@@ -85,58 +84,47 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 /**
  * Handles redirection after sign in or if already signed in
  */
+/**
+ * Handles redirection after sign in or if already signed in
+ */
 function AuthRedirect() {
-    const { user, loading } = useAuth();
+    const { user, identity, loading } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => {
+        // Wait for both user AND identity (if user exists)
         if (!loading && user) {
-            // Check for existing projects and redirect accordingly
-            const checkRedirect = async () => {
-                try {
-                    // Check for existing projects
-                    const { data: projects, error: projectsError } = await supabase
-                        .from('projects')
-                        .select('id')
-                        .order('created_at', { ascending: false })
-                        .limit(1);
+            if (!identity) {
+                // Identity still fetching...
+                return;
+            }
 
-                    if (projectsError) {
-                        navigate('/projects', { replace: true });
-                        return;
-                    }
-
-                    if (projects && projects.length > 0) {
-                        navigate(`/workspace/${projects[0].id}/overview`, { replace: true });
-                    } else {
-                        navigate('/projects', { replace: true });
-                    }
-                } catch (err) {
-                    navigate('/projects', { replace: true });
-                }
-            };
-
-            checkRedirect();
+            // Universal Identity Check
+            if (!identity.has_completed_profile) {
+                // Redirect to profile setup
+                navigate('/account?setup=true', { replace: true });
+            } else {
+                // Normal flow: Go to Dashboard/Projects
+                navigate('/projects', { replace: true });
+            }
         }
-    }, [user, loading, navigate]);
+    }, [user, identity, loading, navigate]);
 
-    if (loading) {
+    // Show loader while Auth OR Identity is loading
+    if (loading || (user && !identity)) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <LoadingSection title="Verifying Identity..." subtitle="Connecting to Universal ID system." variant="inline" />
             </div>
         );
     }
 
-    if (user) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-            </div>
-        );
+    // If no user and not loading, show Sign In
+    if (!user) {
+        return <SignInPage />;
     }
 
-    return <SignInPage />;
+    return null;
 }
 
 import { Toaster } from 'react-hot-toast';

@@ -73,7 +73,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                 .from('users')
                 .select('workspace_id')
                 .eq('id', user.id)
-                .single();
+                .maybeSingle();
 
             const wsId = profile?.workspace_id;
             setWorkspaceId(wsId);

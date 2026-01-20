@@ -62,28 +62,37 @@ export function useWorkspaceRole(options: UseWorkspaceRoleOptions = {}): UseWork
 
             let activeWorkspaceId = workspaceId;
 
-            // If no workspaceId provided, find the user's primary workspace
+            // If no workspaceId provided, find the user's primary workspace (Universal ID)
             if (!activeWorkspaceId) {
-                // Check if they own any workspace
-                const { data: ownedWs } = await supabase
-                    .from('workspaces')
-                    .select('id')
-                    .eq('owner_id', user.id)
+                // Check Universal User first
+                const { data: uUser } = await supabase
+                    .from('universal_users')
+                    .select('universal_id')
+                    .eq('auth_user_id', user.id)
                     .maybeSingle();
 
-                if (ownedWs) {
-                    activeWorkspaceId = ownedWs.id;
+                if (uUser) {
+                    activeWorkspaceId = uUser.universal_id;
                 } else {
-                    // Check if they are a member of any workspace
-                    const { data: memberWs } = await supabase
-                        .from('workspace_members')
-                        .select('workspace_id')
-                        .eq('user_id', user.id)
+                    // Legacy fallback: Check owned workspaces
+                    const { data: ownedWs } = await supabase
+                        .from('workspaces')
+                        .select('id')
+                        .eq('owner_id', user.id)
                         .limit(1)
                         .maybeSingle();
 
-                    if (memberWs) {
-                        activeWorkspaceId = memberWs.workspace_id;
+                    if (ownedWs) {
+                        activeWorkspaceId = ownedWs.id;
+                    } else {
+                        // Check if they are a member
+                        const { data: memberWs } = await supabase
+                            .from('workspace_members')
+                            .select('workspace_id')
+                            .eq('user_id', user.id)
+                            .limit(1)
+                            .maybeSingle();
+                        if (memberWs) activeWorkspaceId = memberWs.workspace_id;
                     }
                 }
             }
@@ -95,14 +104,27 @@ export function useWorkspaceRole(options: UseWorkspaceRoleOptions = {}): UseWork
                 return;
             }
 
-            // Check if user is workspace owner
-            const { data: workspace, error: wsError } = await supabase
+            // 1. Check Universal Ownership
+            const { data: uUser } = await supabase
+                .from('universal_users')
+                .select('auth_user_id')
+                .eq('universal_id', activeWorkspaceId)
+                .maybeSingle();
+
+            if (uUser && uUser.auth_user_id === user.id) {
+                setRole('admin');
+                setIsOwner(true);
+                setLoading(false);
+                return;
+            }
+
+            // 2. Legacy / Shared Ownership Check
+            // Use maybeSingle to avoid 406 if workspace doesn't exist in old table
+            const { data: workspace } = await supabase
                 .from('workspaces')
                 .select('owner_id')
                 .eq('id', activeWorkspaceId)
-                .single();
-
-            if (wsError) throw wsError;
+                .maybeSingle();
 
             if (workspace?.owner_id === user.id) {
                 setRole('admin');
@@ -111,22 +133,18 @@ export function useWorkspaceRole(options: UseWorkspaceRoleOptions = {}): UseWork
                 return;
             }
 
-            // Check workspace membership
-            const { data: membership, error: memberError } = await supabase
+            // 3. Check Workspace Membership (Shared Access)
+            const { data: membership } = await supabase
                 .from('workspace_members')
                 .select('role')
                 .eq('workspace_id', activeWorkspaceId)
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-            if (memberError) throw memberError;
-
-            // Map role to our two-role system
             const memberRole = membership?.role;
             if (memberRole === 'admin') {
                 setRole('admin');
             } else {
-                // Everything else (member, editor, viewer, etc.) is treated as 'member'
                 setRole('member');
             }
             setIsOwner(false);
@@ -134,7 +152,7 @@ export function useWorkspaceRole(options: UseWorkspaceRoleOptions = {}): UseWork
         } catch (err: any) {
             console.error('[useWorkspaceRole] Error fetching role:', err);
             setError(err.message);
-            setRole('member'); // Default to member on error (fail-safe)
+            setRole('member');
             setIsOwner(false);
         } finally {
             setLoading(false);

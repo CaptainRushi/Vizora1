@@ -38,10 +38,13 @@ export function Projects() {
 
     // Optimized data fetching with caching
     const fetchProjects = useCallback(async () => {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('projects')
             .select('*')
             .order('created_at', { ascending: false });
+
+        if (error) console.error('[Projects] Fetch error:', error);
+        console.log('[Projects] Fetched:', data?.length || 0, 'projects');
         return data || [];
     }, []);
 

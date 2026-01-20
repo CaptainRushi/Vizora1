@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 2. CORE TABLES
 -- ============================================================================
 
--- 2.1 USERS (Primary user identity table)
+-- 2.1 USERS (Primary user identity table - LEGACY COMPATIBILITY)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
@@ -26,6 +26,39 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 2.1.B UNIVERSAL IDENTITY (New System Root)
+CREATE TABLE IF NOT EXISTS universal_users (
+    universal_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auth_user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    username TEXT UNIQUE,
+    display_name TEXT,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS universal_workspaces (
+    universal_id UUID PRIMARY KEY REFERENCES universal_users(universal_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS billing_accounts (
+    universal_id UUID PRIMARY KEY REFERENCES universal_users(universal_id) ON DELETE CASCADE,
+    plan TEXT NOT NULL DEFAULT 'free',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS universal_activity_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    universal_id UUID REFERENCES universal_users(universal_id),
+    action TEXT NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 2.2 WORKSPACES (Organization/team containers)
 CREATE TABLE IF NOT EXISTS workspaces (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -36,7 +69,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Resolve cyclic FK: users.workspace_id -> workspaces.id
+-- Ref: users -> workspaces
 DO $$ 
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_workspace') THEN
@@ -130,7 +163,8 @@ CREATE TABLE IF NOT EXISTS projects (
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     schema_type TEXT NOT NULL CHECK (schema_type IN ('sql', 'prisma', 'drizzle')),
     current_step TEXT DEFAULT 'schema',
-    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE, -- Nullable for Universal ID
+    universal_id UUID REFERENCES universal_users(universal_id),    -- New Master Key
     owner_id UUID REFERENCES auth.users(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -484,21 +518,64 @@ CREATE TRIGGER tr_new_project_settings
     AFTER INSERT ON projects
     FOR EACH ROW EXECUTE FUNCTION handle_new_project();
 
--- 10.6 Beta Project Limit (Prevent > 2 projects)
-CREATE OR REPLACE FUNCTION public.prevent_extra_projects()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+-- 10.6 Beta Project Limit (Strict Universal ID Enforcement)
+CREATE OR REPLACE FUNCTION check_beta_project_limit()
+RETURNS TRIGGER AS $$
+DECLARE
+    project_count INTEGER;
+    limit_val INTEGER := 2;
 BEGIN
-    IF (SELECT COUNT(*) FROM projects WHERE owner_id = NEW.owner_id) >= 2 THEN
-        RAISE EXCEPTION 'You cannot create more than 2 projects during the private beta.';
+    SELECT COUNT(*) INTO project_count FROM projects WHERE universal_id = NEW.universal_id;
+    IF project_count >= limit_val THEN
+        RAISE EXCEPTION 'Private Beta Limit Reached: You cannot create more than % projects.', limit_val;
     END IF;
     RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS tr_beta_project_limit ON projects;
-CREATE TRIGGER tr_beta_project_limit
+DROP TRIGGER IF EXISTS enforce_beta_project_limit ON projects; -- Drop new name if exists
+DROP TRIGGER IF EXISTS tr_beta_project_limit ON projects;      -- Drop old name
+CREATE TRIGGER enforce_beta_project_limit
     BEFORE INSERT ON projects
-    FOR EACH ROW EXECUTE FUNCTION prevent_extra_projects();
+    FOR EACH ROW EXECUTE FUNCTION check_beta_project_limit();
+
+-- 10.6.B Beta Version Limit
+CREATE OR REPLACE FUNCTION check_beta_version_limit()
+RETURNS TRIGGER AS $$
+DECLARE
+    version_count INTEGER;
+    limit_val INTEGER := 4;
+BEGIN
+    SELECT COUNT(*) INTO version_count FROM schema_versions WHERE project_id = NEW.project_id;
+    IF version_count >= limit_val THEN
+        RAISE EXCEPTION 'Private Beta Limit Reached: You cannot create more than % schema versions per project.', limit_val;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS enforce_beta_version_limit ON schema_versions;
+CREATE TRIGGER enforce_beta_version_limit
+    BEFORE INSERT ON schema_versions
+    FOR EACH ROW EXECUTE FUNCTION check_beta_version_limit();
+
+
+-- 10.9 Ensure Universal User (Auto-Login)
+CREATE OR REPLACE FUNCTION public.ensure_universal_user(_auth_id UUID, _email TEXT)
+RETURNS UUID language plpgsql SECURITY DEFINER AS $$
+DECLARE
+    _uid UUID;
+BEGIN
+    SELECT universal_id INTO _uid FROM universal_users WHERE auth_user_id = _auth_id;
+    IF _uid IS NOT NULL THEN RETURN _uid; END IF;
+    
+    INSERT INTO universal_users (auth_user_id, email) VALUES (_auth_id, _email) RETURNING universal_id INTO _uid;
+    INSERT INTO universal_workspaces (universal_id, name) VALUES (_uid, 'Personal Workspace');
+    INSERT INTO billing_accounts (universal_id, plan, status) VALUES (_uid, 'free', 'active');
+    
+    RETURN _uid;
+END;
+$$;
 
 -- 10.7 Increment Beta Usage
 CREATE OR REPLACE FUNCTION public.increment_beta_usage(u_id UUID, field TEXT)
@@ -589,8 +666,23 @@ ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Projects - View workspace" ON projects;
 DROP POLICY IF EXISTS "Projects - Create" ON projects;
 DROP POLICY IF EXISTS "Projects - Manage" ON projects;
-CREATE POLICY "Projects - View all" ON projects FOR SELECT USING (true);
-CREATE POLICY "Projects - Manage" ON projects FOR ALL USING (public.is_admin_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid());
+DROP POLICY IF EXISTS "Projects - View all" ON projects;
+
+-- 1. Simple Owner Access
+CREATE POLICY "Projects - Owner Access" ON projects
+FOR ALL USING (auth.uid() = owner_id);
+
+-- 2. Universal ID Access
+CREATE POLICY "Projects - Universal Access" ON projects
+FOR ALL USING (
+    universal_id IN (SELECT universal_id FROM universal_users WHERE auth_user_id = auth.uid())
+);
+
+-- 3. Legacy/Team Access
+CREATE POLICY "Projects - Team Access" ON projects
+FOR ALL USING (
+    workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
+);
 
 -- SCHEMA VERSIONS
 ALTER TABLE schema_versions ENABLE ROW LEVEL SECURITY;
