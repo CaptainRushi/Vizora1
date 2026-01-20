@@ -769,8 +769,8 @@ app.post('/projects', async (req, res) => {
             .single();
 
         if (uErr || !uUser) {
-            console.error('[Create Project] Universal User not found for ID:', workspace_id);
-            return res.status(404).json({ error: "User identity not found (Universal ID mismatch)" });
+            console.error('[Create Project] Universal User lookup failed:', uErr);
+            return res.status(404).json({ error: "User identity not found", details: uErr });
         }
 
         const universalId = uUser.universal_id;
