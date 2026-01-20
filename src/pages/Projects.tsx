@@ -105,9 +105,12 @@ export function Projects() {
             console.error("Create project error:", err);
             const serverMsg = err.response?.data?.message || err.response?.data?.error;
             const msg = serverMsg || err.message || "Unknown error";
+            const details = err.response?.data?.details ? JSON.stringify(err.response.data.details) : '';
 
             if (err.response?.status === 403) {
-                alert(msg);
+                alert(`Permission Denied: ${msg}`);
+            } else if (err.response?.status === 500) {
+                alert(`Server Error: ${msg}\n${details}`);
             } else {
                 alert(`Failed to create project: ${msg}`);
             }
