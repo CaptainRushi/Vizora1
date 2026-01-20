@@ -850,7 +850,7 @@ app.post('/projects', async (req, res) => {
             .single();
 
         if (error) {
-            console.error('[Create Project] DB Insert Error:', error);
+            console.error('[Create Project] DB Insert Error:', JSON.stringify(error, null, 2));
             // Handle specific FK violation if 'workspace_id' fails
             if (error.code === '23503') { // Foreign key violation
                 console.warn('[Create Project] FK Violation likely on workspace_id. Retrying without workspace_id column...');
@@ -871,8 +871,8 @@ app.post('/projects', async (req, res) => {
 
         res.json(data);
     } catch (err: any) {
-        console.error("[Project Creation] Failed:", err);
-        res.status(500).json({ error: err.message });
+        console.error("[Project Creation] Failed:", JSON.stringify(err, null, 2));
+        res.status(500).json({ error: err.message || "Unknown error", details: err });
     }
 });
 
