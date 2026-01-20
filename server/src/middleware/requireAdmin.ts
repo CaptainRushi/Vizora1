@@ -29,30 +29,44 @@ export async function isAdminOfWorkspace(userId: string, workspaceId: string): P
     isOwner: boolean;
     role: 'admin' | 'member';
 }> {
-    // Check if workspace owner
+    // 1. Universal ID Check (New System)
+    // In the new system, workspaceId IS the universal_id.
+    // We check if the userId (Auth ID) matches the auth_user_id for this universal_id.
+    const { data: universalUser } = await supabase
+        .from('universal_users')
+        .select('auth_user_id')
+        .eq('universal_id', workspaceId)
+        .maybeSingle();
+
+    if (universalUser && universalUser.auth_user_id === userId) {
+        return { isAdmin: true, isOwner: true, role: 'admin' };
+    }
+
+    // 2. Legacy / Shared Workspace Check
+    // Check if workspace owner in legacy table
     const { data: workspace } = await supabase
         .from('workspaces')
         .select('owner_id')
         .eq('id', workspaceId)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid 406 on no rows
 
     if (workspace?.owner_id === userId) {
         return { isAdmin: true, isOwner: true, role: 'admin' };
     }
 
-    // Check membership role
+    // 3. Check membership role (Shared Access)
     const { data: member } = await supabase
         .from('workspace_members')
         .select('role')
         .eq('workspace_id', workspaceId)
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
     const role = member?.role === 'admin' ? 'admin' : 'member';
     return {
         isAdmin: role === 'admin',
         isOwner: false,
-        role
+        role: member ? role : 'member' // Default to member if not found (technically should be 'none' but keeping compat)
     };
 }
 
@@ -186,11 +200,25 @@ export async function validateRoleChange(
     // Rule 2: If demoting from admin, ensure at least one admin remains
     if (targetMember.role === 'admin' && newRole === 'member') {
         // Count current admins (owner + admin members)
-        const { data: workspace } = await supabase
-            .from('workspaces')
-            .select('owner_id')
-            .eq('id', workspaceId)
-            .single();
+
+        // 1. Check Universal Owner
+        const { data: uUser } = await supabase
+            .from('universal_users')
+            .select('auth_user_id')
+            .eq('universal_id', workspaceId)
+            .maybeSingle();
+
+        // 2. Fallback to Legacy Owner
+        let ownerId = uUser?.auth_user_id;
+
+        if (!ownerId) {
+            const { data: workspace } = await supabase
+                .from('workspaces')
+                .select('owner_id')
+                .eq('id', workspaceId)
+                .maybeSingle();
+            ownerId = workspace?.owner_id;
+        }
 
         const { count: adminMemberCount } = await supabase
             .from('workspace_members')
@@ -199,6 +227,7 @@ export async function validateRoleChange(
             .eq('role', 'admin');
 
         // Owner is always admin + count of admin members
+        // Note: Owner might NOT be in workspace_members list in some models, so we assume owner is 1 admin.
         const totalAdmins = 1 + (adminMemberCount || 0);
 
         if (totalAdmins <= 1) {
@@ -233,14 +262,28 @@ export async function validateMemberRemoval(
     }
 
     // Check if target is owner
-    const { data: workspace } = await supabase
-        .from('workspaces')
-        .select('owner_id')
-        .eq('id', workspaceId)
-        .single();
+    // 1. Universal Owner
+    const { data: uUser } = await supabase
+        .from('universal_users')
+        .select('auth_user_id')
+        .eq('universal_id', workspaceId)
+        .maybeSingle();
 
-    if (workspace?.owner_id === targetMember.user_id) {
+    if (uUser && uUser.auth_user_id === targetMember.user_id) {
         return { valid: false, error: 'Cannot remove the workspace owner.' };
+    }
+
+    // 2. Legacy Owner (Fallback)
+    if (!uUser) {
+        const { data: workspace } = await supabase
+            .from('workspaces')
+            .select('owner_id')
+            .eq('id', workspaceId)
+            .maybeSingle();
+
+        if (workspace?.owner_id === targetMember.user_id) {
+            return { valid: false, error: 'Cannot remove the workspace owner.' };
+        }
     }
 
     return { valid: true };

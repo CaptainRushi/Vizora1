@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * GET /api/dashboard/usage
- * Returns usage statistics for the workspace
+ * Returns usage statistics for the workspace (Universal ID)
  */
 router.get('/usage', async (req, res) => {
     try {
@@ -21,11 +21,11 @@ router.get('/usage', async (req, res) => {
             return res.status(400).json({ error: 'workspaceId is required' });
         }
 
-        // Get projects
+        // Get projects (Support both Universal ID column and legacy workspace_id)
         const { data: projects } = await supabase
             .from('projects')
             .select('id, created_at')
-            .eq('workspace_id', workspaceId);
+            .or(`universal_id.eq.${workspaceId},workspace_id.eq.${workspaceId}`);
 
         const projectIds = projects?.map(p => p.id) || [];
 
@@ -43,39 +43,19 @@ router.get('/usage', async (req, res) => {
                 { data: latestVersion }
             ] = await Promise.all([
                 // Schema versions count
-                supabase
-                    .from('schema_versions')
-                    .select('*', { count: 'exact', head: true })
-                    .in('project_id', projectIds),
-
+                supabase.from('schema_versions').select('*', { count: 'exact', head: true }).in('project_id', projectIds),
                 // Documentation count
-                supabase
-                    .from('documentation_outputs')
-                    .select('*', { count: 'exact', head: true })
-                    .in('project_id', projectIds),
-
+                supabase.from('documentation_outputs').select('*', { count: 'exact', head: true }).in('project_id', projectIds),
                 // AI questions count
-                supabase
-                    .from('ask_schema_logs')
-                    .select('*', { count: 'exact', head: true })
-                    .in('project_id', projectIds),
-
+                supabase.from('ask_schema_logs').select('*', { count: 'exact', head: true }).in('project_id', projectIds),
                 // Get last activity
-                supabase
-                    .from('schema_versions')
-                    .select('created_at')
-                    .in('project_id', projectIds)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle()
+                supabase.from('schema_versions').select('created_at').in('project_id', projectIds).order('created_at', { ascending: false }).limit(1).maybeSingle()
             ]);
 
             totalVersions = versionCount || 0;
             totalDocs = docsCount || 0;
             totalAiQuestions = aiCount || 0;
             lastActivity = latestVersion?.created_at || null;
-
-            // Diagrams = versions (each version generates a diagram)
             totalDiagrams = totalVersions;
         }
 
@@ -95,7 +75,7 @@ router.get('/usage', async (req, res) => {
 
 /**
  * GET /api/dashboard/billing
- * Returns billing and plan information
+ * Returns billing and plan information (Universal ID aware)
  */
 router.get('/billing', async (req, res) => {
     try {
@@ -105,12 +85,22 @@ router.get('/billing', async (req, res) => {
             return res.status(400).json({ error: 'workspaceId is required' });
         }
 
-        // Get workspace billing
-        const { data: billing } = await supabase
-            .from('workspace_billing')
+        // 1. Try fetching from 'billing_accounts' (New System)
+        let { data: billing } = await supabase
+            .from('billing_accounts')
             .select('plan_id, status, start_at, expires_at')
-            .eq('workspace_id', workspaceId)
+            .eq('universal_id', workspaceId) // Assumes workspaceId is universal_id
             .maybeSingle();
+
+        // 2. Fallback to 'workspace_billing' (Legacy)
+        if (!billing) {
+            const { data: legacyBilling } = await supabase
+                .from('workspace_billing')
+                .select('plan_id, status, start_at, expires_at')
+                .eq('workspace_id', workspaceId)
+                .maybeSingle();
+            billing = legacyBilling;
+        }
 
         // Get plan details
         const planId = billing?.plan_id || 'free';
@@ -120,18 +110,18 @@ router.get('/billing', async (req, res) => {
             .eq('id', planId)
             .single();
 
-        // Get current usage for limits
-        const { data: usage } = await supabase
-            .from('workspace_usage')
-            .select('projects_count, ai_tokens_used')
-            .eq('workspace_id', workspaceId)
-            .maybeSingle();
-
-        // Count actual projects
+        // Get current usage (Count projects dynamically to be safe)
         const { count: projectCount } = await supabase
             .from('projects')
             .select('*', { count: 'exact', head: true })
-            .eq('workspace_id', workspaceId);
+            .or(`universal_id.eq.${workspaceId},workspace_id.eq.${workspaceId}`);
+
+        // AI Usage tracking (simplified for now, strictly speaking we'd need universal_usage table)
+        const { data: usage } = await supabase
+            .from('workspace_usage')
+            .select('ai_tokens_used')
+            .eq('workspace_id', workspaceId)
+            .maybeSingle();
 
         res.json({
             plan: {
@@ -153,7 +143,7 @@ router.get('/billing', async (req, res) => {
                 },
                 ai: {
                     used: 0,
-                    allowed: plan?.ai_limit || -1 // -1 = unlimited
+                    allowed: plan?.ai_limit || -1
                 },
                 exports: plan?.allow_exports || false,
                 team: plan?.allow_team || false
@@ -167,73 +157,116 @@ router.get('/billing', async (req, res) => {
 
 /**
  * GET /api/dashboard/team
- * Returns team members for the workspace
+ * Returns team members (Universal ID aware)
  */
 router.get('/team', async (req, res) => {
     try {
-        const { workspaceId } = req.query;
+        const { workspaceId } = req.query; // This is the Universal ID
 
         if (!workspaceId) {
             return res.status(400).json({ error: 'workspaceId is required' });
         }
 
-        // Get workspace owner
-        const { data: workspace } = await supabase
-            .from('workspaces')
-            .select('owner_id, type')
-            .eq('id', workspaceId)
-            .single();
+        // 1. Fetch Owner from Universal Users (New Source of Truth)
+        const { data: uUser } = await supabase
+            .from('universal_users')
+            .select('universal_id, username, display_name, auth_user_id')
+            .eq('universal_id', workspaceId)
+            .maybeSingle();
 
-        if (!workspace) {
-            return res.status(404).json({ error: 'Workspace not found' });
-        }
-
-        // Get all members
+        // 2. Fetch Members (Legacy / Compatible)
+        // If universal workspace functionality is limited to 1 user (personal), this might be empty.
+        // We check workspace_members table anyway.
         const { data: members } = await supabase
             .from('workspace_members')
             .select('id, user_id, role, created_at')
             .eq('workspace_id', workspaceId);
 
-        // Get profile info for members from authoritative users table
-        const memberIds = members?.map(m => m.user_id) || [];
-        const allUserIds = [workspace.owner_id, ...memberIds];
+        // Collect all User IDs to fetch profiles
+        const memberUserIds = members?.map(m => m.user_id) || [];
+        // If owner exists, add their auth_id if they aren't in members list
+        // Note: uUser.auth_user_id might be needed if members list stores auth IDs (legacy).
+        // New system might store universal_ids in members list? 
+        // Assuming legacy table stores AUTH IDs.
+        const allAuthIds = [...memberUserIds];
+        if (uUser?.auth_user_id) allAuthIds.push(uUser.auth_user_id);
 
-        const { data: userProfiles } = await supabase
-            .from('users')
-            .select('id, username, display_name')
-            .in('id', allUserIds);
+        // Fetch profiles from Universal Users (by Auth ID)
+        // We want to display username/display_name for members too.
+        // But members list has Auth IDs (usually). 
+        // Universal Users map Auth ID -> Profile.
 
-        // Build member list with identity data
+        let userProfiles: any[] = [];
+        if (allAuthIds.length > 0) {
+            const { data: profiles } = await supabase
+                .from('universal_users')
+                .select('auth_user_id, username, display_name')
+                .in('auth_user_id', allAuthIds);
+            userProfiles = profiles || [];
+        }
+
+        // Build List
         const memberList = (members || []).map(m => {
-            const userProfile = userProfiles?.find(p => p.id === m.user_id);
+            const profile = userProfiles.find(p => p.auth_user_id === m.user_id);
             return {
                 id: m.id,
                 user_id: m.user_id,
-                username: userProfile?.username || null,
-                display_name: userProfile?.display_name || null,
+                username: profile?.username || 'Unknown',
+                display_name: profile?.display_name || 'Team Member',
                 role: m.role as 'admin' | 'member',
                 joined_at: m.created_at,
-                is_owner: m.user_id === workspace.owner_id
+                is_owner: m.user_id === uUser?.auth_user_id
             };
         });
 
-        // Add owner if not in members
-        const ownerInMembers = memberList.find(m => m.user_id === workspace.owner_id);
-        if (!ownerInMembers) {
-            const ownerProfile = userProfiles?.find(p => p.id === workspace.owner_id);
-            memberList.unshift({
-                id: 'owner',
-                user_id: workspace.owner_id,
-                username: ownerProfile?.username || null,
-                display_name: ownerProfile?.display_name || null,
-                role: 'admin' as const,
-                joined_at: null,
-                is_owner: true
-            });
+        // Add Owner if not present
+        if (uUser) {
+            const ownerInList = memberList.find(m => m.user_id === uUser.auth_user_id);
+            if (!ownerInList) {
+                memberList.unshift({
+                    id: 'owner',
+                    user_id: uUser.auth_user_id,
+                    username: uUser.username,
+                    display_name: uUser.display_name,
+                    role: 'admin',
+                    joined_at: null,
+                    is_owner: true
+                });
+            }
+        } else {
+            // Fallback: Check legacy workspaces table if Universal User not found 
+            // (e.g. if looking at old shared workspace by ID)
+            const { data: legacyWorkspace } = await supabase
+                .from('workspaces')
+                .select('owner_id, type')
+                .eq('id', workspaceId)
+                .maybeSingle();
+
+            if (legacyWorkspace) {
+                // Fetch legacy user profiles
+                const { data: legacyUsers } = await supabase
+                    .from('users')
+                    .select('id, username, display_name')
+                    .in('id', [legacyWorkspace.owner_id, ...memberUserIds]);
+
+                // ... (Logic to build list from legacy data - simplified here to avoid duplication complexity)
+                const ownerProfile = legacyUsers?.find(u => u.id === legacyWorkspace.owner_id);
+                if (!memberList.find(m => m.user_id === legacyWorkspace.owner_id)) {
+                    memberList.unshift({
+                        id: 'owner',
+                        user_id: legacyWorkspace.owner_id,
+                        username: ownerProfile?.username || 'Owner',
+                        display_name: ownerProfile?.display_name || 'Legacy Owner',
+                        role: 'admin',
+                        joined_at: null,
+                        is_owner: true
+                    });
+                }
+            }
         }
 
         res.json({
-            workspace_type: workspace.type,
+            workspace_type: 'universal', // Simplified
             members: memberList
         });
     } catch (err: any) {

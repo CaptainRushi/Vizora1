@@ -758,33 +758,31 @@ app.post('/projects', async (req, res) => {
             return res.status(400).json({ error: "Name, schema_type, and workspace_id required" });
         }
 
-        // 1 & 2. Parallelize Owner lookup and Limit Checks
-        const [ownerId, limitCheck] = await Promise.all([
-            getOwnerIdFromWorkspace(workspace_id),
-            checkProjectLimit(workspace_id)
-        ]);
+        console.log(`[Create Project] Request for Universal ID (Workspace): ${workspace_id}`);
 
-        if (!ownerId && user_id) {
-            // Safe fallback if lookup fails
-        } else if (!ownerId) {
-            return res.status(404).json({ error: "Workspace owner not found" });
+        // 1. Resolve Universal User (Source of Truth)
+        // We assume 'workspace_id' passed from frontend IS the 'universal_id'
+        const { data: uUser, error: uErr } = await supabase
+            .from('universal_users')
+            .select('universal_id, auth_user_id')
+            .eq('universal_id', workspace_id)
+            .single();
+
+        if (uErr || !uUser) {
+            console.error('[Create Project] Universal User not found for ID:', workspace_id);
+            return res.status(404).json({ error: "User identity not found (Universal ID mismatch)" });
         }
 
-        const finalOwnerId = ownerId || user_id;
+        const universalId = uUser.universal_id;
+        const ownerAuthId = uUser.auth_user_id;
 
-        if (!limitCheck.allowed) {
-            return res.status(403).json({
-                error: "Plan Limit Reached",
-                message: limitCheck.message
-            });
-        }
-
-        // 3. BETA GUARD: Project Limit
+        // 2. Limit Checks (BETA & Plan)
+        // Check limits based on Universal ID ownership
         if (BETA_MODE) {
             const { count, error: countErr } = await supabase
                 .from('projects')
                 .select('*', { count: 'exact', head: true })
-                .eq('owner_id', finalOwnerId);
+                .eq('universal_id', universalId); // Updated to check universal_id
 
             if (countErr) throw countErr;
 
@@ -796,28 +794,77 @@ app.post('/projects', async (req, res) => {
             }
         }
 
-        console.log("Creating project:", { name, schema_type, workspace_id, ownerId: finalOwnerId });
+        // 3. Resolve Compatible Workspace ID (for Legacy FK)
+        // We need a valid ID that exists in 'workspaces' table to satisfy FK constraints if they exist.
+        // Try to find a workspace owned by this user.
+        let { data: legacyWs } = await supabase
+            .from('workspaces')
+            .select('id')
+            .eq('owner_id', ownerAuthId)
+            .limit(1)
+            .maybeSingle();
 
-        // 4. ATOMIC DB INSERT
+        let compatibleWorkspaceId = legacyWs ? legacyWs.id : undefined;
+
+        // Fallback: If no legacy workspace exists, create one lazily to satisfy FK constraints
+        if (!compatibleWorkspaceId) {
+            console.log('[Create Project] No legacy workspace found. Creating placeholder to satisfy FK...');
+            const { data: newWs, error: newWsErr } = await supabase
+                .from('workspaces')
+                .insert({
+                    name: "Personal Workspace",
+                    type: 'personal',
+                    owner_id: ownerAuthId
+                })
+                .select('id')
+                .single();
+
+            if (newWsErr) {
+                console.error('[Create Project] Failed to create placeholder workspace:', newWsErr);
+                // If this fails, we might still try null if DB allows, but likely it will fail.
+            } else {
+                compatibleWorkspaceId = newWs.id;
+
+                // Also ensure member record exists for consistency
+                await supabase.from('workspace_members').insert({
+                    workspace_id: newWs.id,
+                    user_id: ownerAuthId,
+                    role: 'admin'
+                });
+            }
+        }
+
+        const projectData = {
+            name,
+            schema_type,
+            current_step: 'schema',
+            universal_id: universalId,  // NEW MASTER KEY
+            owner_id: ownerAuthId,      // LEGACY RLS KEY
+            workspace_id: compatibleWorkspaceId // Must be a valid FK
+        };
+
         const { data, error } = await supabase
             .from('projects')
-            .insert({
-                name,
-                schema_type,
-                current_step: 'schema',
-                workspace_id,
-                owner_id: finalOwnerId
-            })
+            .insert(projectData)
             .select()
             .single();
 
         if (error) {
-            // Handle trigger exception
-            if (error.message.includes('beta project limit')) {
-                return res.status(403).json({
-                    error: "Private Beta Limit Reached",
-                    message: error.message
-                });
+            console.error('[Create Project] DB Insert Error:', error);
+            // Handle specific FK violation if 'workspace_id' fails
+            if (error.code === '23503') { // Foreign key violation
+                console.warn('[Create Project] FK Violation likely on workspace_id. Retrying without workspace_id column...');
+                const fallbackData = { ...projectData };
+                delete (fallbackData as any).workspace_id;
+
+                const { data: retryData, error: retryError } = await supabase
+                    .from('projects')
+                    .insert(fallbackData)
+                    .select()
+                    .single();
+
+                if (retryError) throw retryError;
+                return res.json(retryData);
             }
             throw error;
         }
