@@ -941,6 +941,15 @@ app.post('/projects', async (req, res) => {
 
 
         res.json(data);
+
+        // Initialize Project Settings (Async)
+        supabase.from('project_settings').insert({
+            project_id: data.id,
+            auto_generate_docs: true,
+            explanation_mode: 'developer'
+        }).then(({ error }: { error: any }) => {
+            if (error) console.warn('[Create Project] Failed to init settings:', error.message);
+        });
     } catch (err: any) {
         // Detailed error logging specifically for this mysterious 500
         console.error("[Project Creation] Failed Full Error Object:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
@@ -1538,8 +1547,10 @@ app.post('/projects/:id/schema', requireProjectContext, async (req, res) => {
         await supabase.from('projects').update({ current_step: 'diagram' }).eq('id', id);
 
         // 6. ASYNC BACKGROUND TASKS (No Await)
+        // 6. ASYNC BACKGROUND TASKS (No Await)
         generateAndSaveExplanations(id as string, nextVersion, result.schema).then(async (success) => {
-            if (success && settings?.auto_generate_docs) {
+            const autoDocs = settings?.auto_generate_docs ?? true; // Default to true if settings missing
+            if (success && autoDocs) {
                 await generateDocumentation(id as string, nextVersion);
             }
         }).catch(err => {

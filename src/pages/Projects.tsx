@@ -19,11 +19,12 @@ interface Project {
     schema_type: string;
     created_at: string;
     current_step: string;
+    owner_id?: string;
 }
 
 export function Projects() {
     const navigate = useNavigate();
-    const { identity } = useAuth();
+    const { identity, user } = useAuth();
     const { projectId: currentProjectId, switchProject } = useProject();
 
     // Workspace & Role state
@@ -330,13 +331,13 @@ export function Projects() {
                                             </div>
                                         </div>
 
-                                        {isAdmin && (
+                                        {(isAdmin || p.owner_id === user?.id) && (
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleDelete(p.id);
                                                 }}
-                                                className="absolute bottom-6 right-6 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                                className="absolute bottom-6 right-6 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                                                 title="Delete Project"
                                             >
                                                 <Trash2 className="h-5 w-5" />
