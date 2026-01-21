@@ -2052,7 +2052,9 @@ console.log(`Serving static files from: ${distPath}`);
 app.use(express.static(distPath));
 
 // Handle SPA routing: serve index.html for any non-API routes
-app.get('*', (req, res) => {
+// Handle SPA routing: serve index.html for any non-API routes
+// Note: Express 5 requires (.*) instead of * for wildcard matching
+app.get(/(.*)/, (req, res) => {
     if (req.path.startsWith('/api')) {
         return res.status(404).json({ error: 'API route not found' });
     }
