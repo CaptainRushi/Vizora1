@@ -21,6 +21,31 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 2.1.B UNIVERSAL IDENTITY (New System Root)
+CREATE TABLE IF NOT EXISTS universal_users (
+    universal_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auth_user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    username TEXT UNIQUE,
+    display_name TEXT,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS universal_workspaces (
+    universal_id UUID PRIMARY KEY REFERENCES universal_users(universal_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS billing_accounts (
+    universal_id UUID PRIMARY KEY REFERENCES universal_users(universal_id) ON DELETE CASCADE,
+    plan TEXT NOT NULL DEFAULT 'free',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 2.2 WORKSPACES
 CREATE TABLE IF NOT EXISTS workspaces (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
