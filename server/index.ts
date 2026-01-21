@@ -247,15 +247,34 @@ async function generateAndSaveExplanations(projectId: string, versionNumber: num
         // 'full' = DB + Tables + Relations
         const dbPrompt = `Explain this database schema JSON in simple, clear English.\n\nRules:\n- Explain the database as a whole\n- Include main entities and their roles\n- High-level relationships\n- Do not invent anything\n- Do not guess business logic\n- Be concise but useful\n\nSchema:\n${schemaString}`;
 
-        const tasks: Promise<any>[] = [
-            openai.chat.completions.create({
+        // Wrappers for robust error handling
+        const completionTask = (prompt: string, type: string, extra: any = {}) => {
+            return openai.chat.completions.create({
                 model: "openai/gpt-4o-mini",
                 temperature: 0.2,
-                messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: dbPrompt }]
+                messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }]
             })
-        ];
+                .then((res: any) => ({ success: true, res, type, ...extra }))
+                .catch((err: any) => ({ success: false, error: err, type, ...extra }));
+        };
 
-        // Batched Table Processing
+        const batchTask = (prompt: string, chunk: string[]) => {
+            return openai.chat.completions.create({
+                model: "openai/gpt-4o-mini",
+                temperature: 0.2,
+                response_format: { type: "json_object" },
+                messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }]
+            })
+                .then((res: any) => ({ success: true, res, type: 'batch_tables', names: chunk }))
+                .catch((err: any) => ({ success: false, error: err, type: 'batch_tables_error', names: chunk }));
+        };
+
+        const tasks: Promise<any>[] = [];
+
+        // 1. DB Task
+        tasks.push(completionTask(dbPrompt, 'database'));
+
+        // 2. Batched Tables
         if (aiLevel === 'table' || aiLevel === 'full') {
             const BATCH_SIZE = 10;
             for (let i = 0; i < tableNames.length; i += BATCH_SIZE) {
@@ -272,39 +291,17 @@ Do not infer business logic. Keep it technical and concise.
 Tables to Explain:
 ${JSON.stringify(chunkDefinitions, null, 2)}`;
 
-                tasks.push(
-                    openai.chat.completions.create({
-                        model: "openai/gpt-4o-mini",
-                        temperature: 0.2,
-                        response_format: { type: "json_object" },
-                        messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: batchPrompt }]
-                    }).then((res: any) => ({
-                        res,
-                        type: 'batch_tables',
-                        names: chunk
-                    }))
-                );
+                tasks.push(batchTask(batchPrompt, chunk));
             }
         }
 
-        // Add relationship task
+        // 3. Relationships
         if (aiLevel === 'full') {
             const relPrompt = `Explain the primary keys, foreign keys, and relationships across this schema.\nHow is data integrity enforced?\n\nSchema:\n${schemaString}`;
-            tasks.push(
-                openai.chat.completions.create({
-                    model: "openai/gpt-4o-mini",
-                    temperature: 0.2,
-                    messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: relPrompt }]
-                }).then((res: any) => ({
-                    res,
-                    type: 'relationship',
-                    name: null
-                }))
-            );
+            tasks.push(completionTask(relPrompt, 'relationship'));
         }
 
         const results = await Promise.all(tasks);
-        const dbRes = results[0] as any; // First one is always DB
 
         const explanations: {
             project_id: string;
@@ -313,57 +310,73 @@ ${JSON.stringify(chunkDefinitions, null, 2)}`;
             entity_name: string | null;
             mode: string;
             content: string;
-        }[] = [{
-            project_id: projectId,
-            version_number: versionNumber,
-            entity_type: 'database',
-            entity_name: null,
-            mode: mode,
-            content: dbRes.choices ? dbRes.choices[0]?.message.content : (dbRes.res ? dbRes.res.choices[0]?.message.content : "Error")
-        }];
+        }[] = [];
 
-        // Process rest
-        for (let i = 1; i < results.length; i++) {
-            const r = results[i] as any;
-            if (r.res) {
-                if (r.type === 'batch_tables') {
-                    try {
-                        const content = r.res.choices[0]?.message.content;
-                        const parsed = JSON.parse(content);
-                        Object.entries(parsed).forEach(([tableName, explanation]) => {
-                            explanations.push({
-                                project_id: projectId,
-                                version_number: versionNumber,
-                                entity_type: 'table',
-                                entity_name: tableName,
-                                mode: mode,
-                                content: typeof explanation === 'string' ? explanation : JSON.stringify(explanation)
-                            });
+        // Process results
+        for (const r of results) {
+            if (!r.success) {
+                console.warn(`[AI Engine] Task failed: ${r.type}`, r.error?.message);
+                // Fallback for failed batches
+                if (r.type === 'batch_tables_error') {
+                    r.names.forEach((name: string) => {
+                        explanations.push({
+                            project_id: projectId,
+                            version_number: versionNumber,
+                            entity_type: 'table',
+                            entity_name: name,
+                            mode: mode,
+                            content: "Explanation currently unavailable (AI generation failed)."
                         });
-                    } catch (e) {
-                        console.error('[AI Engine] Failed to parse batch JSON:', e);
-                        // Fallback: Add generic notes for these tables so docs don't break
-                        r.names.forEach((name: string) => {
-                            explanations.push({
-                                project_id: projectId,
-                                version_number: versionNumber,
-                                entity_type: 'table',
-                                entity_name: name,
-                                mode: mode,
-                                content: " Automated explanation failed during batch processing."
-                            });
-                        });
-                    }
-                } else {
+                    });
+                } else if (r.type === 'database') {
                     explanations.push({
                         project_id: projectId,
                         version_number: versionNumber,
-                        entity_type: r.type,
-                        entity_name: r.name,
-                        mode: mode,
-                        content: r.res.choices[0]?.message.content ?? "No explanation generated."
+                        entity_type: 'database',
+                        entity_name: null,
+                        mode: 'error',
+                        content: "Database overview generation failed."
                     });
                 }
+                continue;
+            }
+
+            if (r.type === 'batch_tables') {
+                try {
+                    const content = r.res.choices[0]?.message.content;
+                    const parsed = JSON.parse(content);
+                    Object.entries(parsed).forEach(([tableName, explanation]) => {
+                        explanations.push({
+                            project_id: projectId,
+                            version_number: versionNumber,
+                            entity_type: 'table',
+                            entity_name: tableName,
+                            mode: mode,
+                            content: typeof explanation === 'string' ? explanation : JSON.stringify(explanation)
+                        });
+                    });
+                } catch (e) {
+                    console.error('[AI Engine] Failed to parse batch JSON:', e);
+                    r.names.forEach((name: string) => {
+                        explanations.push({
+                            project_id: projectId,
+                            version_number: versionNumber,
+                            entity_type: 'table',
+                            entity_name: name,
+                            mode: mode,
+                            content: "Automated explanation failed during parsing."
+                        });
+                    });
+                }
+            } else {
+                explanations.push({
+                    project_id: projectId,
+                    version_number: versionNumber,
+                    entity_type: r.type,
+                    entity_name: r.entity_name || r.name || null,
+                    mode: mode,
+                    content: r.res.choices[0]?.message.content ?? "No explanation generated."
+                });
             }
         }
 
@@ -806,6 +819,9 @@ app.use('/api/workspace', workspaceRoutes);
 // Platform & Settings Routes
 app.use('/api/settings', platformSettingsRoutes);
 app.use('/api/settings/project', projectSettingsRoutes);
+
+// Todo System Routes
+app.use('/api/todos', todoRoutes);
 
 // --- ROUTES ---
 /**

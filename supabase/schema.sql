@@ -550,9 +550,231 @@ BEGIN
             )
         )';
     END LOOP;
+);
+ALTER TABLE interaction_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS notification_settings (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email_schema_changes BOOLEAN DEFAULT TRUE,
+    email_team_activity BOOLEAN DEFAULT FALSE,
+    email_ai_summary BOOLEAN DEFAULT FALSE,
+    inapp_schema BOOLEAN DEFAULT TRUE,
+    inapp_team BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE notification_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS intelligence_settings (
+    workspace_id UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+    explanation_mode TEXT DEFAULT 'developer',
+    evidence_strict BOOLEAN DEFAULT TRUE,
+    auto_schema_review BOOLEAN DEFAULT TRUE,
+    auto_onboarding BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE intelligence_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS privacy_settings (
+    workspace_id UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+    retain_all_versions BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE privacy_settings ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- 8. BETA & FEEDBACK
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS beta_usage (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    projects_created INT DEFAULT 0,
+    versions_created INT DEFAULT 0,
+    diagrams_viewed INT DEFAULT 0,
+    docs_generated INT DEFAULT 0,
+    beta_ends_at TIMESTAMPTZ,
+    first_used_at TIMESTAMPTZ DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE beta_usage ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS user_feedback (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+    context TEXT,
+    rating INT,
+    answer_confusing TEXT,
+    answer_helpful TEXT,
+    answer_missing TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE user_feedback ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================
+-- 9. FUNCTIONS & TRIGGERS
+-- ============================================================================
+
+-- Helper: Check Membership
+CREATE OR REPLACE FUNCTION public.is_member_of(_workspace_id UUID)
+RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER SET search_path = public STABLE AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM workspace_members
+        WHERE workspace_id = _workspace_id AND user_id = auth.uid()
+    );
+$$;
+GRANT EXECUTE ON FUNCTION public.is_member_of(uuid) TO authenticated, anon;
+
+CREATE OR REPLACE FUNCTION public.is_admin_of(_workspace_id UUID)
+RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER SET search_path = public STABLE AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM workspace_members
+        WHERE workspace_id = _workspace_id AND user_id = auth.uid() AND role = 'admin'
+    );
+$$;
+GRANT EXECUTE ON FUNCTION public.is_admin_of(uuid) TO authenticated, anon;
+
+-- Hybrid User Setup (Universal + Legacy + Personal Workspace)
+CREATE OR REPLACE FUNCTION public.handle_new_user_setup()
+RETURNS TRIGGER AS $$
+DECLARE
+    new_workspace_id UUID;
+BEGIN
+    INSERT INTO public.universal_users (auth_user_id, email, username, display_name)
+    VALUES (
+        NEW.id, 
+        NEW.email, 
+        COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)), 
+        NEW.raw_user_meta_data->>'full_name'
+    ) ON CONFLICT (auth_user_id) DO NOTHING;
+
+    INSERT INTO public.workspaces (name, type, owner_id)
+    VALUES ('Personal Workspace', 'personal', NEW.id)
+    RETURNING id INTO new_workspace_id;
+
+    INSERT INTO public.users (id, email, username, display_name, workspace_id)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+        NEW.raw_user_meta_data->>'full_name',
+        new_workspace_id
+    ) ON CONFLICT (id) DO UPDATE SET workspace_id = new_workspace_id;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS tr_new_user_setup ON auth.users;
+CREATE TRIGGER tr_new_user_setup
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_setup();
+
+-- Updated Beta Limit (100)
+CREATE OR REPLACE FUNCTION check_beta_project_limit()
+RETURNS TRIGGER AS $$
+DECLARE
+    project_count INTEGER;
+    limit_val INTEGER := 100;
+BEGIN
+    SELECT COUNT(*) INTO project_count FROM projects WHERE owner_id = NEW.owner_id;
+    IF project_count >= limit_val THEN
+        RAISE EXCEPTION 'Beta Limit Reached: You cannot create more than % projects.', limit_val;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS enforce_beta_project_limit ON projects;
+CREATE TRIGGER enforce_beta_project_limit
+    BEFORE INSERT ON projects
+    FOR EACH ROW EXECUTE FUNCTION check_beta_project_limit();
+
+-- ============================================================================
+-- 10. POLICIES (Comprehensive)
+-- ============================================================================
+
+-- Workspaces
+DROP POLICY IF EXISTS "Workspaces - View All" ON workspaces;
+CREATE POLICY "Workspaces - View All" ON workspaces FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Workspaces - Manage Own" ON workspaces;
+CREATE POLICY "Workspaces - Manage Own" ON workspaces FOR ALL USING (owner_id = auth.uid());
+
+-- Projects (Strict Workspace Scoping)
+DROP POLICY IF EXISTS "Projects - View Workspace" ON projects;
+CREATE POLICY "Projects - View Workspace" ON projects FOR SELECT USING (
+    workspace_id IN (
+        SELECT id FROM workspaces WHERE owner_id = auth.uid()
+        UNION
+        SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    )
+);
+
+DROP POLICY IF EXISTS "Projects - Manage Workspace" ON projects;
+CREATE POLICY "Projects - Manage Workspace" ON projects FOR ALL USING (
+    workspace_id IN (
+        SELECT id FROM workspaces WHERE owner_id = auth.uid()
+        UNION
+        SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    )
+);
+
+-- Schema Versions & Artifacts (Generic Policy Loop)
+DO $$
+DECLARE 
+    t TEXT;
+    table_list TEXT[] := ARRAY[
+        'schema_versions', 'schema_changes', 'schema_explanations', 
+        'schema_reviews', 'onboarding_guides', 'ask_schema_logs', 
+        'documentation_outputs', 'schema_comments', 'diagram_states', 
+        'generated_code', 'project_settings'
+    ];
+BEGIN
+    FOREACH t IN ARRAY table_list
+    LOOP
+        EXECUTE 'DROP POLICY IF EXISTS "Workspace Access" ON ' || t;
+        EXECUTE 'CREATE POLICY "Workspace Access" ON ' || t || ' FOR ALL USING (
+            project_id IN (
+                SELECT id FROM projects WHERE workspace_id IN (
+                    SELECT id FROM workspaces WHERE owner_id = auth.uid() 
+                    UNION 
+                    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+                )
+            )
+        )';
+    END LOOP;
 END $$;
 
 -- User Settings (Own)
 DROP POLICY IF EXISTS "User Settings - Own" ON user_settings;
 CREATE POLICY "User Settings - Own" ON user_settings FOR ALL USING (user_id = auth.uid());
 -- (Repeat for other settings tables logic ideally, but omitted for brevity as they follow same Own pattern)
+
+CREATE TABLE IF NOT EXISTS todos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  completed BOOLEAN DEFAULT FALSE,
+  due_date DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+-- Row Level Security
+ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can manage their own todos" ON todos;
+
+CREATE POLICY "Users can manage their own todos" ON todos
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);
+CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed);
+
+-- Grant permissions (Crucial for 403 prevention)
+GRANT ALL ON TABLE todos TO authenticated;
+GRANT ALL ON TABLE todos TO service_role;
