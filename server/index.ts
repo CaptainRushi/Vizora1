@@ -765,7 +765,7 @@ app.use('/api/settings/project', projectSettingsRoutes);
 
 app.post('/projects', async (req, res) => {
     try {
-        const { name, schema_type, workspace_id, user_id } = req.body;
+        let { name, schema_type, workspace_id, user_id } = req.body;
 
         if (!name || !schema_type) {
             return res.status(400).json({ error: "Name and schema_type are required" });
@@ -843,13 +843,61 @@ app.post('/projects', async (req, res) => {
             }
         }
 
-        // 3. Decoupled Logic: Do NOT force a workspace.
-        // If workspace_id is provided, use it. If not, create a standalone project properly owned by the user.
-        let targetWorkspaceId = workspace_id || null;
+        // 3. STRICT RELATIONSHIP ENFORCEMENT
+        // As per Master Prompt: "Every project must belong to exactly one workspace."
+        if (!workspace_id) {
+            return res.status(400).json({
+                error: "Missing Workspace Context",
+                message: "A valid workspace_id is required to create a project."
+            });
+        }
 
-        // Legacy compatibility: If we have a valid legacy workspace for this user, we can try to use it 
-        // ONLY IF the user implicitly wanted it (but here we respect the request: if it's null, keep it null).
-        // For now, we strictly follow the requested ID.
+        // Verify Workspace Exists before creating project to avoid FK error
+        const { data: workspaceExists, error: wsCheckErr } = await supabase
+            .from('workspaces')
+            .select('id')
+            .eq('id', workspace_id)
+            .single();
+
+        if (wsCheckErr || !workspaceExists) {
+            console.warn(`[Create Project] Workspace ${workspace_id} not found. Attempting auto-recovery...`);
+
+            // Auto-Recovery 1: Find ANY workspace owned by this user
+            const { data: existingWs } = await supabase
+                .from('workspaces')
+                .select('id')
+                .eq('owner_id', ownerAuthId)
+                .limit(1)
+                .maybeSingle();
+
+            if (existingWs) {
+                console.log(`[Create Project] Found alternative workspace: ${existingWs.id}`);
+                // Use the found workspace
+                workspace_id = existingWs.id;
+            } else {
+                // Auto-Recovery 2: Create a new Personal Workspace
+                console.log(`[Create Project] No workspace found. Creating new Personal Workspace...`);
+                const { data: newWs, error: createWsErr } = await supabase
+                    .from('workspaces')
+                    .insert({
+                        name: "Personal Workspace",
+                        type: 'personal',
+                        owner_id: ownerAuthId
+                    })
+                    .select('id')
+                    .single();
+
+                if (createWsErr || !newWs) {
+                    console.error('[Create Project] Failed to auto-create workspace:', createWsErr);
+                    return res.status(500).json({
+                        error: "Workspace Creation Failed",
+                        message: "Could not establish a workspace for this project. Please contact support."
+                    });
+                }
+
+                workspace_id = newWs.id;
+            }
+        }
 
         const projectData = {
             name,
@@ -857,7 +905,7 @@ app.post('/projects', async (req, res) => {
             current_step: 'schema',
             universal_id: universalId,
             owner_id: ownerAuthId,
-            workspace_id: targetWorkspaceId // Can be null now
+            workspace_id: workspace_id // Now guaranteed to be valid
         };
 
         const { data, error } = await supabase
@@ -870,7 +918,7 @@ app.post('/projects', async (req, res) => {
             console.error('[Create Project] DB Insert Error:', JSON.stringify(error, null, 2));
 
             // Retry Logic for Common Schema/Data Issues
-            // 1. Universal Column Missing (Schema Drift)?
+            // Universal Column Missing (Schema Drift)?
             if (error.message?.includes('universal_id') || error.code === '42703') { // Undefined column
                 console.warn('[Create Project] Retrying without universal_id (Legacy Mode)...');
                 const legacyData = { ...projectData };
@@ -885,33 +933,10 @@ app.post('/projects', async (req, res) => {
                 if (retryError) throw retryError;
                 return res.json(retryData);
             }
-
-            // 2. FK Violation on workspace_id?
-            if (error.code === '23503') {
-                console.warn('[Create Project] FK Violation on workspace_id. Retrying without it...');
-                const fallbackData = { ...projectData };
-                delete (fallbackData as any).workspace_id;
-
-                const { data: retryData, error: retryError } = await supabase
-                    .from('projects')
-                    .insert(fallbackData)
-                    .select()
-                    .single();
-
-                if (retryError) throw retryError;
-                return res.json(retryData);
-            }
-
-            // 3. NULL Violation (Project-Workspace Decoupling Issue)
-            if (error.code === '23502' && error.details?.includes('workspace_id')) {
-                return res.status(400).json({
-                    error: "Database Schema Mismatch",
-                    message: "The database still requires a connected workspace. Please run the 'decouple_project_workspace.sql' migration script in your Supabase SQL Editor to fix this."
-                });
-            }
-
+            // Removed contradictory 'retry without workspace_id' block
             throw error;
         }
+
 
         res.json(data);
     } catch (err: any) {
