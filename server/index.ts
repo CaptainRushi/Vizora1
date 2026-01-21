@@ -838,7 +838,35 @@ app.post('/projects', async (req, res) => {
 
         compatibleWorkspaceId = legacyWs ? legacyWs.id : undefined;
 
-        // Fallback: Create placeholder only if absolutely needed (skipping for now to avoid side effects if not needed)
+        // Fallback: Create placeholder workspace if one doesn't exist
+        // This is critical for satisfying the workspace_id NOT NULL constraint
+        if (!compatibleWorkspaceId) {
+            console.log('[Create Project] No legacy workspace found. Creating placeholder...');
+            try {
+                const { data: newWs, error: newWsErr } = await supabase
+                    .from('workspaces')
+                    .insert({
+                        name: "Personal Workspace",
+                        type: 'personal',
+                        owner_id: ownerAuthId
+                    })
+                    .select('id')
+                    .single();
+
+                if (newWsErr || !newWs) {
+                    console.error('[Create Project] Failed to create placeholder:', newWsErr);
+                } else {
+                    compatibleWorkspaceId = newWs.id;
+                    await supabase.from('workspace_members').insert({
+                        workspace_id: newWs.id,
+                        user_id: ownerAuthId,
+                        role: 'admin'
+                    });
+                }
+            } catch (wsErr) {
+                console.warn('[Create Project] Placeholder creation warning:', wsErr);
+            }
+        }
 
         const projectData = {
             name,
