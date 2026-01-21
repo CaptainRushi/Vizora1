@@ -296,5 +296,23 @@ export const api = {
             const res = await axios.delete(`${API_BASE_URL}/api/project-settings/${projectId}`);
             return res.data;
         }
+    },
+    todos: {
+        all: async (userId: string) => {
+            const res = await axios.get(`${API_BASE_URL}/api/todos`, { headers: { 'x-user-id': userId } });
+            return res.data;
+        },
+        create: async (userId: string, task: { title: string; due_date?: string }) => {
+            const res = await axios.post(`${API_BASE_URL}/api/todos`, task, { headers: { 'x-user-id': userId } });
+            return res.data;
+        },
+        update: async (userId: string, id: string, updates: { title?: string; completed?: boolean; due_date?: string }) => {
+            const res = await axios.patch(`${API_BASE_URL}/api/todos/${id}`, updates, { headers: { 'x-user-id': userId } });
+            return res.data;
+        },
+        delete: async (userId: string, id: string) => {
+            const res = await axios.delete(`${API_BASE_URL}/api/todos/${id}`, { headers: { 'x-user-id': userId } });
+            return res.data;
+        }
     }
 };

@@ -31,6 +31,7 @@ import workspaceRoutes from './src/routes/workspace.js';
 import platformSettingsRoutes from './src/routes/platformSettings.js';
 import projectSettingsRoutes from './src/routes/projectSettings.js';
 import userRoutes from './src/routes/user.js';
+import todoRoutes from './src/routes/todos.js';
 import {
     getWorkspacePlan,
     checkProjectLimit,
@@ -809,28 +810,32 @@ app.post('/projects', async (req, res) => {
         // Fallback: If no legacy workspace exists, create one lazily to satisfy FK constraints
         if (!compatibleWorkspaceId) {
             console.log('[Create Project] No legacy workspace found. Creating placeholder to satisfy FK...');
-            const { data: newWs, error: newWsErr } = await supabase
-                .from('workspaces')
-                .insert({
-                    name: "Personal Workspace",
-                    type: 'personal',
-                    owner_id: ownerAuthId
-                })
-                .select('id')
-                .single();
+            try {
+                const { data: newWs, error: newWsErr } = await supabase
+                    .from('workspaces')
+                    .insert({
+                        name: "Personal Workspace",
+                        type: 'personal',
+                        owner_id: ownerAuthId
+                    })
+                    .select('id')
+                    .single();
 
-            if (newWsErr) {
-                console.error('[Create Project] Failed to create placeholder workspace:', newWsErr);
-                // If this fails, we might still try null if DB allows, but likely it will fail.
-            } else {
-                compatibleWorkspaceId = newWs.id;
+                if (newWsErr || !newWs) {
+                    console.error('[Create Project] Failed to create placeholder workspace:', newWsErr);
+                    // We'll proceed with compatibleWorkspaceId as undefined and hope projects table allows it or retry logic handles it
+                } else {
+                    compatibleWorkspaceId = newWs.id;
 
-                // Also ensure member record exists for consistency
-                await supabase.from('workspace_members').insert({
-                    workspace_id: newWs.id,
-                    user_id: ownerAuthId,
-                    role: 'admin'
-                });
+                    // Also ensure member record exists for consistency
+                    await supabase.from('workspace_members').insert({
+                        workspace_id: newWs.id,
+                        user_id: ownerAuthId,
+                        role: 'admin'
+                    });
+                }
+            } catch (wsErr) {
+                console.error('[Create Project] Unexpected error during placeholder workspace creation:', wsErr);
             }
         }
 
@@ -851,8 +856,8 @@ app.post('/projects', async (req, res) => {
 
         if (error) {
             console.error('[Create Project] DB Insert Error:', JSON.stringify(error, null, 2));
-            // Handle specific FK violation if 'workspace_id' fails
-            if (error.code === '23503') { // Foreign key violation
+            // Handle specific FK violation if 'workspace_id' fails (fallback)
+            if (error.code === '23503') {
                 console.warn('[Create Project] FK Violation likely on workspace_id. Retrying without workspace_id column...');
                 const fallbackData = { ...projectData };
                 delete (fallbackData as any).workspace_id;
@@ -863,7 +868,10 @@ app.post('/projects', async (req, res) => {
                     .select()
                     .single();
 
-                if (retryError) throw retryError;
+                if (retryError) {
+                    console.error('[Create Project] Retry Failed:', retryError);
+                    throw retryError;
+                }
                 return res.json(retryData);
             }
             throw error;
@@ -871,8 +879,12 @@ app.post('/projects', async (req, res) => {
 
         res.json(data);
     } catch (err: any) {
-        console.error("[Project Creation] Failed:", JSON.stringify(err, null, 2));
-        res.status(500).json({ error: err.message || "Unknown error", details: err });
+        console.error("[Project Creation] Failed:", err);
+        res.status(500).json({
+            error: err.message || "Unknown error",
+            details: err.details || err,
+            code: err.code
+        });
     }
 });
 
@@ -2031,6 +2043,7 @@ app.delete('/projects/:id/team/:type/:itemId', requireProjectContext, async (req
 // Platform Settings Routes
 app.use('/api/settings', platformSettingsRoutes);
 app.use('/api/project-settings', projectSettingsRoutes);
+app.use('/api/todos', todoRoutes);
 
 // Create HTTP server for Socket.IO integration
 const httpServer = createServer(app);

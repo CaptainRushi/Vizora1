@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Folder, PenTool, Settings, HelpCircle, LogOut, Github, Chrome, MessageSquarePlus, ShieldCheck, BookOpen, Brain } from 'lucide-react';
+import { Folder, PenTool, Settings, HelpCircle, LogOut, Github, Chrome, MessageSquarePlus, ShieldCheck, BookOpen, Brain, CheckCircle2 } from 'lucide-react';
 import { Logo } from './VizoraLogo';
 import { useAuth } from '../context/AuthContext';
 import { FeedbackPrompt } from './beta/FeedbackPrompt';
@@ -14,12 +14,13 @@ interface GlobalSidebarProps {
 export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, profile, signOut } = useAuth();
+    const { user, identity, signOut } = useAuth();
     const [showFeedback, setShowFeedback] = useState(false);
     const { isAdmin } = useWorkspaceRole(); // Will use default workspace if no project ID
 
     const navItems = [
         { icon: Folder, label: 'Projects', path: '/projects' },
+        { icon: CheckCircle2, label: 'My Tasks', path: '/todo' },
         { icon: PenTool, label: 'Designer', path: '/designer' },
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
@@ -182,7 +183,7 @@ export function GlobalSidebar({ isMobileOpen = false }: GlobalSidebarProps) {
                         <div className="ml-3 text-left opacity-0 group-hover:opacity-100 transition-opacity overflow-hidden whitespace-nowrap">
                             <div className="flex items-center gap-2">
                                 <p className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-tight">
-                                    {profile?.username || user?.user_metadata?.full_name || 'User'}
+                                    {identity?.username || user?.user_metadata?.full_name || 'User'}
                                 </p>
                                 <div className={`px-1.5 py-0.5 rounded text-[8px] font-black border ${isAdmin
                                     ? 'bg-purple-100 text-purple-700 border-purple-200'

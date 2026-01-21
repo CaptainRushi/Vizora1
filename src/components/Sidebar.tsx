@@ -18,6 +18,7 @@ import {
     ShieldCheck,
     BookOpen,
     Brain,
+    CheckCircle2,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarItem } from './SidebarItem';
@@ -145,6 +146,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     subLabel="Manage all projects"
                                     active={isActive('/projects')}
                                     onClick={() => handleNavigation('/projects')}
+                                />
+                                <SidebarItem
+                                    icon={CheckCircle2}
+                                    label="My Tasks"
+                                    active={isActive('/todo')}
+                                    onClick={() => handleNavigation('/todo')}
                                 />
                                 <WorkspaceSidebarSection />
                                 <SidebarItem

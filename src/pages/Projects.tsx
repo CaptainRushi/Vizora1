@@ -71,7 +71,7 @@ export function Projects() {
             if (userError || !user) throw new Error('Not authenticated');
 
             // Get user's workspace
-            let targetWorkspaceId = workspaceId;
+            let targetWorkspaceId = workspaceId || identity?.universal_id;
 
             // Fallback: If context is somehow missing workspace_id (rare race condition on fresh login)
             if (!targetWorkspaceId) {
@@ -80,6 +80,8 @@ export function Projects() {
                     const freshIdentity = await api.user.getMe(user.id);
                     if (freshIdentity?.workspace_id) {
                         targetWorkspaceId = freshIdentity.workspace_id;
+                    } else if (freshIdentity?.universal_id) {
+                        targetWorkspaceId = freshIdentity.universal_id;
                     }
                 } catch (fetchErr) {
                     console.error('[Projects] Failed to fetch identity backup:', fetchErr);

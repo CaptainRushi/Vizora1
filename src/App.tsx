@@ -30,6 +30,7 @@ const ProjectSettings = lazy(() => import('./pages/ProjectSettings').then(m => (
 const Help = lazy(() => import('./pages/Help').then(m => ({ default: m.Help })));
 const SignInPage = lazy(() => import('./pages/auth/SignInPage').then(m => ({ default: m.SignInPage })));
 const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
+const ToDoPage = lazy(() => import('./pages/ToDoPage').then(m => ({ default: m.ToDoPage })));
 
 // Intelligence Features
 const SchemaReview = lazy(() => import('./pages/Intelligence/SchemaReview'));
@@ -235,6 +236,7 @@ function App() {
                                     <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
                                     <Route path="/dashboard/account" element={<UserDashboard />} />
                                     <Route path="/projects" element={<Projects />} />
+                                    <Route path="/todo" element={<ToDoPage />} />
                                     <Route path="/account" element={<UserDashboard />} />
                                     <Route path="/designer" element={<SchemaDesigner />} />
                                     <Route path="/billing" element={<Navigate to="/projects" replace />} />
