@@ -2101,7 +2101,7 @@ app.use(express.static(distPath));
 // Handle SPA routing: serve index.html for any non-API routes
 // Note: Express 5 requires (.*) instead of * for wildcard matching
 // We use a regex that matches everything BUT starts with /api (though API routes should be handled above, this is safety)
-app.get('*', (req, res) => {
+app.get(/(.*)/, (req, res) => {
     if (req.path.startsWith('/api')) {
         return res.status(404).json({ error: 'API route not found' });
     }
