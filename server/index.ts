@@ -753,37 +753,71 @@ app.post('/projects', async (req, res) => {
     try {
         const { name, schema_type, workspace_id, user_id } = req.body;
 
-        if (!name || !schema_type || !workspace_id) {
-            return res.status(400).json({ error: "Name, schema_type, and workspace_id required" });
+        if (!name || !schema_type) {
+            return res.status(400).json({ error: "Name and schema_type are required" });
         }
 
-        console.log(`[Create Project] Request for Universal ID (Workspace): ${workspace_id}`);
+        console.log(`[Create Project] Request. Universal: ${workspace_id}, User: ${user_id}`);
 
-        // 1. Resolve Universal User (Source of Truth)
-        // We assume 'workspace_id' passed from frontend IS the 'universal_id'
-        const { data: uUser, error: uErr } = await supabase
-            .from('universal_users')
-            .select('universal_id, auth_user_id')
-            .eq('universal_id', workspace_id)
-            .single();
+        let universalId = workspace_id;
+        let ownerAuthId = user_id;
 
-        if (uErr || !uUser) {
-            console.error('[Create Project] Universal User lookup failed:', uErr);
-            return res.status(404).json({ error: "User identity not found", details: uErr });
+        // 1. Resolve Identity
+        // Try to verify if 'workspace_id' provided is a valid Universal ID
+        if (workspace_id) {
+            const { data: uUser } = await supabase
+                .from('universal_users')
+                .select('universal_id, auth_user_id')
+                .eq('universal_id', workspace_id)
+                .maybeSingle();
+
+            if (uUser) {
+                universalId = uUser.universal_id;
+                ownerAuthId = uUser.auth_user_id;
+            } else if (user_id) {
+                // Fallback: If workspace_id was not a valid universal_id, try finding by user_id
+                const { data: uUserByAuth } = await supabase
+                    .from('universal_users')
+                    .select('universal_id, auth_user_id')
+                    .eq('auth_user_id', user_id)
+                    .maybeSingle();
+
+                if (uUserByAuth) {
+                    universalId = uUserByAuth.universal_id;
+                    ownerAuthId = uUserByAuth.auth_user_id;
+                }
+            }
+        } else if (user_id) {
+            // No workspace_id, resolve by user_id
+            const { data: uUser } = await supabase
+                .from('universal_users')
+                .select('universal_id, auth_user_id')
+                .eq('auth_user_id', user_id)
+                .maybeSingle();
+
+            if (uUser) {
+                universalId = uUser.universal_id;
+                ownerAuthId = uUser.auth_user_id;
+            }
         }
 
-        const universalId = uUser.universal_id;
-        const ownerAuthId = uUser.auth_user_id;
+        if (!ownerAuthId) {
+            return res.status(400).json({ error: "Unable to resolve user identity. Please relogin." });
+        }
 
         // 2. Limit Checks (BETA & Plan)
-        // Check limits based on Universal ID ownership
         if (BETA_MODE) {
-            const { count, error: countErr } = await supabase
-                .from('projects')
-                .select('*', { count: 'exact', head: true })
-                .eq('universal_id', universalId); // Updated to check universal_id
+            // Check limits based on Universal ID ownership (or owner_id if universal missing)
+            let countQuery = supabase.from('projects').select('*', { count: 'exact', head: true });
+            if (universalId) {
+                countQuery = countQuery.eq('universal_id', universalId);
+            } else {
+                countQuery = countQuery.eq('owner_id', ownerAuthId);
+            }
 
-            if (countErr) throw countErr;
+            const { count, error: countErr } = await countQuery;
+
+            if (countErr) console.warn('[Create Project] Limit check warning:', countErr.message);
 
             if (count !== null && count >= BETA_PROJECT_LIMIT) {
                 return res.status(403).json({
@@ -794,8 +828,7 @@ app.post('/projects', async (req, res) => {
         }
 
         // 3. Resolve Compatible Workspace ID (for Legacy FK)
-        // We need a valid ID that exists in 'workspaces' table to satisfy FK constraints if they exist.
-        // Try to find a workspace owned by this user.
+        let compatibleWorkspaceId = undefined;
         let { data: legacyWs } = await supabase
             .from('workspaces')
             .select('id')
@@ -803,39 +836,9 @@ app.post('/projects', async (req, res) => {
             .limit(1)
             .maybeSingle();
 
-        let compatibleWorkspaceId = legacyWs ? legacyWs.id : undefined;
+        compatibleWorkspaceId = legacyWs ? legacyWs.id : undefined;
 
-        // Fallback: If no legacy workspace exists, create one lazily to satisfy FK constraints
-        if (!compatibleWorkspaceId) {
-            console.log('[Create Project] No legacy workspace found. Creating placeholder to satisfy FK...');
-            try {
-                const { data: newWs, error: newWsErr } = await supabase
-                    .from('workspaces')
-                    .insert({
-                        name: "Personal Workspace",
-                        type: 'personal',
-                        owner_id: ownerAuthId
-                    })
-                    .select('id')
-                    .single();
-
-                if (newWsErr || !newWs) {
-                    console.error('[Create Project] Failed to create placeholder workspace:', newWsErr);
-                    // We'll proceed with compatibleWorkspaceId as undefined and hope projects table allows it or retry logic handles it
-                } else {
-                    compatibleWorkspaceId = newWs.id;
-
-                    // Also ensure member record exists for consistency
-                    await supabase.from('workspace_members').insert({
-                        workspace_id: newWs.id,
-                        user_id: ownerAuthId,
-                        role: 'admin'
-                    });
-                }
-            } catch (wsErr) {
-                console.error('[Create Project] Unexpected error during placeholder workspace creation:', wsErr);
-            }
-        }
+        // Fallback: Create placeholder only if absolutely needed (skipping for now to avoid side effects if not needed)
 
         const projectData = {
             name,
@@ -854,9 +857,27 @@ app.post('/projects', async (req, res) => {
 
         if (error) {
             console.error('[Create Project] DB Insert Error:', JSON.stringify(error, null, 2));
-            // Handle specific FK violation if 'workspace_id' fails (fallback)
+
+            // Retry Logic for Common Schema/Data Issues
+            // 1. Universal Column Missing (Schema Drift)?
+            if (error.message?.includes('universal_id') || error.code === '42703') { // Undefined column
+                console.warn('[Create Project] Retrying without universal_id (Legacy Mode)...');
+                const legacyData = { ...projectData };
+                delete (legacyData as any).universal_id;
+
+                const { data: retryData, error: retryError } = await supabase
+                    .from('projects')
+                    .insert(legacyData)
+                    .select()
+                    .single();
+
+                if (retryError) throw retryError;
+                return res.json(retryData);
+            }
+
+            // 2. FK Violation on workspace_id?
             if (error.code === '23503') {
-                console.warn('[Create Project] FK Violation likely on workspace_id. Retrying without workspace_id column...');
+                console.warn('[Create Project] FK Violation on workspace_id. Retrying without it...');
                 const fallbackData = { ...projectData };
                 delete (fallbackData as any).workspace_id;
 
@@ -866,10 +887,7 @@ app.post('/projects', async (req, res) => {
                     .select()
                     .single();
 
-                if (retryError) {
-                    console.error('[Create Project] Retry Failed:', retryError);
-                    throw retryError;
-                }
+                if (retryError) throw retryError;
                 return res.json(retryData);
             }
             throw error;
@@ -877,11 +895,12 @@ app.post('/projects', async (req, res) => {
 
         res.json(data);
     } catch (err: any) {
-        console.error("[Project Creation] Failed:", err);
+        // Detailed error logging specifically for this mysterious 500
+        console.error("[Project Creation] Failed Full Error Object:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
         res.status(500).json({
             error: err.message || "Unknown error",
             details: err.details || err,
-            code: err.code
+            code: err.code || 'UNKNOWN'
         });
     }
 });
