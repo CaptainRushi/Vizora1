@@ -123,8 +123,12 @@ export function Projects() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!isAdmin) {
-            alert("Only workspace admins can delete projects.");
+        const projectToDelete = projects.find(p => p.id === id);
+        // Fallback: If project not found in list (rare), strict admin check or assume safe to try server
+        const isOwner = projectToDelete?.owner_id === user?.id;
+
+        if (!isAdmin && !isOwner) {
+            alert("Only workspace admins or the project owner can delete projects.");
             return;
         }
         if (!confirm("Are you sure? This will delete all versions, documentation, and metadata for this project. This action is irreversible.")) return;
