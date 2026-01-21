@@ -540,25 +540,36 @@ $$;
 
 -- USERS
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users - View all" ON users;
 CREATE POLICY "Users - View all" ON users FOR SELECT USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Users - Update self" ON users;
 CREATE POLICY "Users - Update self" ON users FOR UPDATE USING (id = auth.uid());
+DROP POLICY IF EXISTS "Users - Insert self" ON users;
 CREATE POLICY "Users - Insert self" ON users FOR INSERT WITH CHECK (id = auth.uid());
 
 -- WORKSPACES
 ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Workspaces - View owned or member" ON workspaces;
 CREATE POLICY "Workspaces - View owned or member" ON workspaces FOR SELECT USING (owner_id = auth.uid() OR public.is_member_of(id));
+DROP POLICY IF EXISTS "Workspaces - Create own" ON workspaces;
 CREATE POLICY "Workspaces - Create own" ON workspaces FOR INSERT WITH CHECK (owner_id = auth.uid());
+DROP POLICY IF EXISTS "Workspaces - Update own" ON workspaces;
 CREATE POLICY "Workspaces - Update own" ON workspaces FOR UPDATE USING (owner_id = auth.uid() OR public.is_admin_of(id));
+DROP POLICY IF EXISTS "Workspaces - Delete own" ON workspaces;
 CREATE POLICY "Workspaces - Delete own" ON workspaces FOR DELETE USING (owner_id = auth.uid());
 
 -- MEMBERS
 ALTER TABLE workspace_members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Members - View workspace colleagues" ON workspace_members;
 CREATE POLICY "Members - View workspace colleagues" ON workspace_members FOR SELECT USING (public.is_member_of(workspace_id));
+DROP POLICY IF EXISTS "Members - Insert" ON workspace_members;
 CREATE POLICY "Members - Insert" ON workspace_members FOR INSERT WITH CHECK (
     (public.is_admin_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid()) OR
     (user_id = auth.uid() AND EXISTS (SELECT 1 FROM workspace_invites WHERE workspace_id = workspace_members.workspace_id AND is_active = TRUE AND revoked = FALSE AND expires_at > NOW() AND used_count < max_uses))
 );
+DROP POLICY IF EXISTS "Members - Admins manage" ON workspace_members;
 CREATE POLICY "Members - Admins manage" ON workspace_members FOR UPDATE USING (public.is_admin_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid());
+DROP POLICY IF EXISTS "Members - Admins delete" ON workspace_members;
 CREATE POLICY "Members - Admins delete" ON workspace_members FOR DELETE USING (public.is_admin_of(workspace_id) OR (SELECT owner_id FROM workspaces WHERE id = workspace_id) = auth.uid());
 
 -- SETTINGS & DATA
