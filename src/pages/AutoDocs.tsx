@@ -51,7 +51,7 @@ export function AutoDocs() {
 
         const interval = setInterval(() => {
             fetchDocs(true);
-        }, 5000);
+        }, 2000);
 
         return () => clearInterval(interval);
     }, [projectId, projectLoading]);

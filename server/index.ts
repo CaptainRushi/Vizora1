@@ -255,24 +255,36 @@ async function generateAndSaveExplanations(projectId: string, versionNumber: num
             })
         ];
 
-        // Add table tasks
+        // Batched Table Processing
         if (aiLevel === 'table' || aiLevel === 'full') {
-            tableNames.forEach(tableName => {
-                const tableDef = schema.tables[tableName];
-                const tablePrompt = `Explain the purpose of this table and how it relates to others.\nDo not infer business logic.\n\nTable: ${tableName}\nDefinition:\n${JSON.stringify(tableDef, null, 2)}`;
+            const BATCH_SIZE = 10;
+            for (let i = 0; i < tableNames.length; i += BATCH_SIZE) {
+                const chunk = tableNames.slice(i, i + BATCH_SIZE);
+                const chunkDefinitions: Record<string, any> = {};
+                chunk.forEach(name => {
+                    chunkDefinitions[name] = schema.tables[name];
+                });
+
+                const batchPrompt = `Explain these ${chunk.length} tables in the database.
+Return a valid JSON object where keys are the table names and values are the string explanations.
+Do not infer business logic. Keep it technical and concise.
+
+Tables to Explain:
+${JSON.stringify(chunkDefinitions, null, 2)}`;
 
                 tasks.push(
                     openai.chat.completions.create({
                         model: "openai/gpt-4o-mini",
                         temperature: 0.2,
-                        messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: tablePrompt }]
+                        response_format: { type: "json_object" },
+                        messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: batchPrompt }]
                     }).then((res: any) => ({
                         res,
-                        type: 'table',
-                        name: tableName
+                        type: 'batch_tables',
+                        names: chunk
                     }))
                 );
-            });
+            }
         }
 
         // Add relationship task
@@ -294,7 +306,14 @@ async function generateAndSaveExplanations(projectId: string, versionNumber: num
         const results = await Promise.all(tasks);
         const dbRes = results[0] as any; // First one is always DB
 
-        const explanations = [{
+        const explanations: {
+            project_id: string;
+            version_number: number;
+            entity_type: string;
+            entity_name: string | null;
+            mode: string;
+            content: string;
+        }[] = [{
             project_id: projectId,
             version_number: versionNumber,
             entity_type: 'database',
@@ -307,14 +326,44 @@ async function generateAndSaveExplanations(projectId: string, versionNumber: num
         for (let i = 1; i < results.length; i++) {
             const r = results[i] as any;
             if (r.res) {
-                explanations.push({
-                    project_id: projectId,
-                    version_number: versionNumber,
-                    entity_type: r.type,
-                    entity_name: r.name,
-                    mode: mode,
-                    content: r.res.choices[0]?.message.content ?? "No explanation generated."
-                });
+                if (r.type === 'batch_tables') {
+                    try {
+                        const content = r.res.choices[0]?.message.content;
+                        const parsed = JSON.parse(content);
+                        Object.entries(parsed).forEach(([tableName, explanation]) => {
+                            explanations.push({
+                                project_id: projectId,
+                                version_number: versionNumber,
+                                entity_type: 'table',
+                                entity_name: tableName,
+                                mode: mode,
+                                content: typeof explanation === 'string' ? explanation : JSON.stringify(explanation)
+                            });
+                        });
+                    } catch (e) {
+                        console.error('[AI Engine] Failed to parse batch JSON:', e);
+                        // Fallback: Add generic notes for these tables so docs don't break
+                        r.names.forEach((name: string) => {
+                            explanations.push({
+                                project_id: projectId,
+                                version_number: versionNumber,
+                                entity_type: 'table',
+                                entity_name: name,
+                                mode: mode,
+                                content: " Automated explanation failed during batch processing."
+                            });
+                        });
+                    }
+                } else {
+                    explanations.push({
+                        project_id: projectId,
+                        version_number: versionNumber,
+                        entity_type: r.type,
+                        entity_name: r.name,
+                        mode: mode,
+                        content: r.res.choices[0]?.message.content ?? "No explanation generated."
+                    });
+                }
             }
         }
 
