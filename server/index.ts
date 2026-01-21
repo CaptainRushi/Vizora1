@@ -773,7 +773,9 @@ app.post('/projects', async (req, res) => {
 
         console.log(`[Create Project] Request. Universal: ${workspace_id}, User: ${user_id}`);
 
-        let universalId = workspace_id;
+        // Initialize as null. We will only set it if we verify it exists in universal_users.
+        // This prevents FK violations if the client sends a legacy workspace_id.
+        let universalId = null;
         let ownerAuthId = user_id;
 
         // 1. Resolve Identity
