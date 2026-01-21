@@ -901,6 +901,15 @@ app.post('/projects', async (req, res) => {
                 if (retryError) throw retryError;
                 return res.json(retryData);
             }
+
+            // 3. NULL Violation (Project-Workspace Decoupling Issue)
+            if (error.code === '23502' && error.details?.includes('workspace_id')) {
+                return res.status(400).json({
+                    error: "Database Schema Mismatch",
+                    message: "The database still requires a connected workspace. Please run the 'decouple_project_workspace.sql' migration script in your Supabase SQL Editor to fix this."
+                });
+            }
+
             throw error;
         }
 
@@ -908,6 +917,15 @@ app.post('/projects', async (req, res) => {
     } catch (err: any) {
         // Detailed error logging specifically for this mysterious 500
         console.error("[Project Creation] Failed Full Error Object:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+
+        // Return 400 if it's the known migration issue (caught above but rethrown if not 23502)
+        if (err.code === '23502') {
+            return res.status(400).json({
+                error: "Database Schema Mismatch",
+                message: "The database table 'projects' has a NOT NULL constraint on 'workspace_id'. You requested a decoupled project, but the database migration has not been applied. Please run `supabase/migrations/decouple_project_workspace.sql`."
+            });
+        }
+
         res.status(500).json({
             error: err.message || "Unknown error",
             details: err.details || err,
