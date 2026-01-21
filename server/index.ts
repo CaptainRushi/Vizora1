@@ -843,54 +843,21 @@ app.post('/projects', async (req, res) => {
             }
         }
 
-        // 3. Resolve Compatible Workspace ID (for Legacy FK)
-        let compatibleWorkspaceId = undefined;
-        let { data: legacyWs } = await supabase
-            .from('workspaces')
-            .select('id')
-            .eq('owner_id', ownerAuthId)
-            .limit(1)
-            .maybeSingle();
+        // 3. Decoupled Logic: Do NOT force a workspace.
+        // If workspace_id is provided, use it. If not, create a standalone project properly owned by the user.
+        let targetWorkspaceId = workspace_id || null;
 
-        compatibleWorkspaceId = legacyWs ? legacyWs.id : undefined;
-
-        // Fallback: Create placeholder workspace if one doesn't exist
-        // This is critical for satisfying the workspace_id NOT NULL constraint
-        if (!compatibleWorkspaceId) {
-            console.log('[Create Project] No legacy workspace found. Creating placeholder...');
-            try {
-                const { data: newWs, error: newWsErr } = await supabase
-                    .from('workspaces')
-                    .insert({
-                        name: "Personal Workspace",
-                        type: 'personal',
-                        owner_id: ownerAuthId
-                    })
-                    .select('id')
-                    .single();
-
-                if (newWsErr || !newWs) {
-                    console.error('[Create Project] Failed to create placeholder:', newWsErr);
-                } else {
-                    compatibleWorkspaceId = newWs.id;
-                    await supabase.from('workspace_members').insert({
-                        workspace_id: newWs.id,
-                        user_id: ownerAuthId,
-                        role: 'admin'
-                    });
-                }
-            } catch (wsErr) {
-                console.warn('[Create Project] Placeholder creation warning:', wsErr);
-            }
-        }
+        // Legacy compatibility: If we have a valid legacy workspace for this user, we can try to use it 
+        // ONLY IF the user implicitly wanted it (but here we respect the request: if it's null, keep it null).
+        // For now, we strictly follow the requested ID.
 
         const projectData = {
             name,
             schema_type,
             current_step: 'schema',
-            universal_id: universalId,  // NEW MASTER KEY
-            owner_id: ownerAuthId,      // LEGACY RLS KEY
-            workspace_id: compatibleWorkspaceId // Must be a valid FK
+            universal_id: universalId,
+            owner_id: ownerAuthId,
+            workspace_id: targetWorkspaceId // Can be null now
         };
 
         const { data, error } = await supabase
