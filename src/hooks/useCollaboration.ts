@@ -230,7 +230,7 @@ export function useCollaboration({ workspaceId, onContentChange, onVersionSaved 
     const memoizedBlockAttributions = useMemo(() => Array.from(blockAttributions.values()), [blockAttributions]);
     const memoizedTypingUsers = useMemo(() => Array.from(typingUsers.values()).map(t => t.username), [typingUsers]);
 
-    return {
+    return useMemo(() => ({
         isConnected: state.isConnected,
         users: state.users,
         canEdit: state.canEdit,
@@ -244,5 +244,18 @@ export function useCollaboration({ workspaceId, onContentChange, onVersionSaved 
         sendMessage,
         sendTyping,
         socket: socketRef.current
-    };
+    }), [
+        state.isConnected,
+        state.users,
+        state.canEdit,
+        state.role,
+        messages,
+        memoizedBlockAttributions,
+        memoizedTypingUsers,
+        sendUpdate,
+        saveVersion,
+        commitAttribution,
+        sendMessage,
+        sendTyping
+    ]);
 }

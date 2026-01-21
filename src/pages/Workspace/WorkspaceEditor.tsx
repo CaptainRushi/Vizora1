@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { getUserColorClass } from '../../utils/userColors';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor, { DiffEditor } from '@monaco-editor/react';
@@ -997,7 +997,7 @@ export function WorkspaceEditor() {
                                     });
                                 });
                             }}
-                            options={{
+                            options={useMemo(() => ({
                                 readOnly: !permissions.canEdit,
                                 minimap: { enabled: true, scale: 0.8 },
                                 fontSize: 14,
@@ -1013,7 +1013,7 @@ export function WorkspaceEditor() {
                                 bracketPairColorization: { enabled: true },
                                 formatOnPaste: true,
                                 wordWrap: 'on',
-                            }}
+                            }), [permissions.canEdit])}
                             loading={
                                 <div className="flex items-center gap-2 text-slate-400">
                                     <div className="w-4 h-4 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 editor-loading-spinner" />
