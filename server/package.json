@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "tsx index.ts",
-    "build": "echo 'No build step required for tsx'",
+    "build": "cd .. && npm install && npm run build",
     "dev": "tsx watch --ignore node_modules index.ts",
     "serve": "tsx index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
