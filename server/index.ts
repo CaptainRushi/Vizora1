@@ -91,6 +91,20 @@ try {
         throw new Error("Missing Supabase URL or Key");
     }
     supabase = createClient(supabaseUrl, supabaseKey);
+    // Key Type Check (Safety Log)
+    const isServiceKey = supabaseKey.includes('service_role') || (await supabase.auth.getSession()).data.session === null; // Service client has no user session by default but behaves as admin
+
+    // We can decode the JWT part to be sure
+    try {
+        const payload = JSON.parse(Buffer.from(supabaseKey.split('.')[1], 'base64').toString());
+        console.log(`[Supabase Setup] Using Key Role: ${payload.role ? payload.role.toUpperCase() : 'UNKNOWN'}`);
+        if (payload.role !== 'service_role') {
+            console.warn("⚠️  WARNING: Backend is NOT using SERVICE_ROLE_KEY. RLS policies will likely block writes!");
+        }
+    } catch (e) {
+        console.log("[Supabase Setup] Could not decode key to verify role.");
+    }
+
     console.log("Supabase client initialized successfully");
 
     // Ensure documentation bucket exists
