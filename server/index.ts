@@ -54,6 +54,8 @@ const BETA_PROJECT_LIMIT = 100;
 const BETA_VERSION_LIMIT = 4;
 const BETA_LABEL = "Private Beta";
 
+const PORT = process.env.PORT || 3001;
+
 const app = express();
 app.use(compression());
 app.use(cors());
@@ -643,7 +645,7 @@ app.post('/feedback/submit', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3002;
+
 
 const SYSTEM_PROMPT = `You are a senior backend engineer and database architect.
 Your task is to explain a database schema clearly and accurately.

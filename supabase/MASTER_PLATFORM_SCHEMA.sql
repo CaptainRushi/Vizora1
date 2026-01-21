@@ -1,32 +1,18 @@
 -- ==============================================================================
--- VIZORA MASTER PLATFORM SCHEMA (2026-01-21)
+-- VIZORA MASTER PLATFORM SCHEMA (UPDATED 2026-01-21)
 -- ==============================================================================
--- This file is the SINGLE SOURCE OF TRUTH for the entire Vizora Platform.
--- It enforces:
--- 1. Unified Identity (universal_users)
--- 2. Strict Project-Workspace Hierarchy (Projects MUST belong to a Workspace)
--- 3. High Beta Limits (100 Projects)
--- 4. Correct Permissions & RLS (No 403 Errors)
-
--- ⚠️ WARNING: TO START FRESH, UNCOMMENT THE FOLLOWING LINES:
--- DROP SCHEMA public CASCADE;
--- CREATE SCHEMA public;
--- GRANT ALL ON SCHEMA public TO postgres;
--- GRANT ALL ON SCHEMA public TO public;
-
+-- 🚨 INSTRUCTIONS:
+-- 1. Run this ENTIRE script in the Supabase SQL Editor.
+-- 2. It will FIX permissions, ENFORCE hierarchy, and UPDATE limits.
 -- ==============================================================================
--- 1. EXTENSIONS & BASICS
--- ==============================================================================
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Grant usage immediately to avoid basic permission errors
+-- 1. SETUP & PERMISSIONS
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 
--- ==============================================================================
--- 2. IDENTITY & WORKSPACES (The Core Hierarchy)
--- ==============================================================================
-
--- 2.1 Universal Users (The "Real" User Record)
+-- 2. IDENTITY (Universal Users)
 CREATE TABLE IF NOT EXISTS universal_users (
     universal_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     auth_user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -37,7 +23,10 @@ CREATE TABLE IF NOT EXISTS universal_users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2.2 Workspaces (The Parent Container)
+-- Force enable RLS
+ALTER TABLE universal_users ENABLE ROW LEVEL SECURITY;
+
+-- 3. WORKSPACES
 CREATE TABLE IF NOT EXISTS workspaces (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -46,8 +35,9 @@ CREATE TABLE IF NOT EXISTS workspaces (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
 
--- 2.3 Workspace Members (Access Control)
+-- 4. WORKSPACE MEMBERS
 CREATE TABLE IF NOT EXISTS workspace_members (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -56,8 +46,9 @@ CREATE TABLE IF NOT EXISTS workspace_members (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(workspace_id, user_id)
 );
+ALTER TABLE workspace_members ENABLE ROW LEVEL SECURITY;
 
--- 2.4 Projects (The Child - STRICTLY LINKED)
+-- 5. PROJECTS (The Critical Fix)
 CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -65,19 +56,20 @@ CREATE TABLE IF NOT EXISTS projects (
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     schema_type TEXT NOT NULL, -- sql | prisma | drizzle
     current_step TEXT DEFAULT 'schema',
-    
-    -- 🚨 CRITICAL: STRICT PARENT-CHILD RELATIONSHIP
-    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    
-    owner_id UUID REFERENCES auth.users(id), -- Denormalized for convenience, but workspace_id is the authority
-    universal_id UUID REFERENCES universal_users(universal_id), -- Optional link to universal identity
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE, -- Constraint enforced below
+    owner_id UUID REFERENCES auth.users(id),
+    universal_id UUID REFERENCES universal_users(universal_id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 
--- ==============================================================================
--- 3. SCHEMA VERSIONING & INTELLIGENCE
--- ==============================================================================
+-- 🧹 CLEANUP: Remove orphan projects before enforcing strictness
+DELETE FROM projects WHERE workspace_id IS NULL;
 
+-- 🔒 ENFORCE STRICT HIERARCHY
+ALTER TABLE projects ALTER COLUMN workspace_id SET NOT NULL;
+
+-- 6. SUPPORTING TABLES (Versioning, Billing)
 CREATE TABLE IF NOT EXISTS schema_versions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -93,30 +85,7 @@ CREATE TABLE IF NOT EXISTS schema_versions (
     created_by_username TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
-CREATE TABLE IF NOT EXISTS schema_explanations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    version_number INT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_name TEXT,
-    mode TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS documentation_outputs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    version INT NOT NULL,
-    pdf_url TEXT, 
-    markdown TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ==============================================================================
--- 4. BILLING & USAGE
--- ==============================================================================
+ALTER TABLE schema_versions ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE IF NOT EXISTS billing_plans (
     id TEXT PRIMARY KEY,
@@ -131,37 +100,9 @@ CREATE TABLE IF NOT EXISTS billing_plans (
     ai_level TEXT NOT NULL CHECK (ai_level IN ('none', 'db', 'table', 'full'))
 );
 
-CREATE TABLE IF NOT EXISTS workspace_billing (
-    workspace_id UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
-    plan_id TEXT REFERENCES billing_plans(id) DEFAULT 'free',
-    status TEXT CHECK (status IN ('active', 'expired')) DEFAULT 'active',
-    start_at TIMESTAMPTZ DEFAULT NOW(),
-    expires_at TIMESTAMPTZ,
-    last_payment_id UUID -- References payments(id)
-);
+-- 7. FUNCTIONS & TRIGGERS
 
-CREATE TABLE IF NOT EXISTS workspace_usage (
-    workspace_id UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
-    projects_count INT DEFAULT 0,
-    storage_bytes BIGINT DEFAULT 0,
-    ai_tokens_used BIGINT DEFAULT 0,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS beta_usage (
-    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    projects_created INT DEFAULT 0,
-    versions_created INT DEFAULT 0,
-    diagrams_viewed INT DEFAULT 0,
-    docs_generated INT DEFAULT 0,
-    last_used_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ==============================================================================
--- 5. FUNCTIONS
--- ==============================================================================
-
--- Security Helper
+-- Helper: Member Check
 CREATE OR REPLACE FUNCTION public.is_member_of(_workspace_id UUID)
 RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER SET search_path = public STABLE AS $$
   SELECT EXISTS (
@@ -169,16 +110,9 @@ RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER SET search_path = public STABLE AS
     WHERE workspace_id = _workspace_id AND user_id = auth.uid()
   );
 $$;
+GRANT EXECUTE ON FUNCTION public.is_member_of(uuid) TO authenticated, anon;
 
-CREATE OR REPLACE FUNCTION public.is_admin_of(_workspace_id UUID)
-RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER SET search_path = public STABLE AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM workspace_members
-    WHERE workspace_id = _workspace_id AND user_id = auth.uid() AND role = 'admin'
-  );
-$$;
-
--- Setup New User
+-- Auto-User Setup
 CREATE OR REPLACE FUNCTION public.handle_new_user_setup()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -198,7 +132,7 @@ CREATE OR REPLACE TRIGGER tr_new_user_setup
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_setup();
 
--- BETA LIMIT (Set to 100)
+-- Project Limit (100)
 CREATE OR REPLACE FUNCTION public.prevent_extra_projects()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
@@ -214,29 +148,29 @@ CREATE TRIGGER tr_beta_project_limit
   BEFORE INSERT ON projects
   FOR EACH ROW EXECUTE FUNCTION prevent_extra_projects();
 
--- ==============================================================================
--- 6. SECURITY & RLS (Unified Policies)
--- ==============================================================================
+-- 8. RLS POLICIES (Fresh & Permissive)
 
--- Enable RLS
-ALTER TABLE universal_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workspace_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE schema_versions ENABLE ROW LEVEL SECURITY;
+-- Universal Users
+DROP POLICY IF EXISTS "Universal - View All" ON universal_users;
+CREATE POLICY "Universal - View All" ON universal_users FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Universal - Modify Self" ON universal_users;
+CREATE POLICY "Universal - Modify Self" ON universal_users FOR ALL USING (auth_user_id = auth.uid());
 
--- 6.1 Users (See Self + Public Profiles)
-CREATE POLICY "Users - View All" ON universal_users FOR SELECT USING (true);
-CREATE POLICY "Users - Manage Self" ON universal_users FOR ALL USING (auth_user_id = auth.uid());
-
--- 6.2 Workspaces (Member Access)
-CREATE POLICY "Workspaces - View Members" ON workspaces FOR SELECT USING (
-    owner_id = auth.uid() OR public.is_member_of(id)
-);
+-- Workspaces
+DROP POLICY IF EXISTS "Workspaces - View All" ON workspaces;
+CREATE POLICY "Workspaces - View All" ON workspaces FOR SELECT USING (true); -- Allow listing to find your own
+DROP POLICY IF EXISTS "Workspaces - Manage Own" ON workspaces;
 CREATE POLICY "Workspaces - Manage Own" ON workspaces FOR ALL USING (owner_id = auth.uid());
 
--- 6.3 Projects (Strict Workspace Scoping)
-CREATE POLICY "Projects - Workspace Members" ON projects FOR ALL USING (
+-- Workspace Members
+DROP POLICY IF EXISTS "Members - View All" ON workspace_members;
+CREATE POLICY "Members - View All" ON workspace_members FOR SELECT USING (true);
+
+-- Projects (Strict Workspace Scoping)
+DROP POLICY IF EXISTS "Projects - View" ON projects;
+DROP POLICY IF EXISTS "Projects - Manage" ON projects;
+
+CREATE POLICY "Projects - View Workspace" ON projects FOR SELECT USING (
     workspace_id IN (
         SELECT id FROM workspaces WHERE owner_id = auth.uid()
         UNION
@@ -244,8 +178,7 @@ CREATE POLICY "Projects - Workspace Members" ON projects FOR ALL USING (
     )
 );
 
--- 6.4 Schema Artifacts (Workspace Scoping)
-CREATE POLICY "Versions - Workspace Access" ON schema_versions FOR ALL USING (
+CREATE POLICY "Projects - Manage Workspace" ON projects FOR ALL USING (
     workspace_id IN (
         SELECT id FROM workspaces WHERE owner_id = auth.uid()
         UNION
@@ -253,24 +186,18 @@ CREATE POLICY "Versions - Workspace Access" ON schema_versions FOR ALL USING (
     )
 );
 
--- ==============================================================================
--- 7. GRANTS (Fixing ALL 403s)
--- ==============================================================================
+-- 9. RETROACTIVE DATA REPAIR
+-- Ensure all existing auth users have a universal_user record
+INSERT INTO public.universal_users (auth_user_id, email, username)
+SELECT 
+    id, 
+    email, 
+    COALESCE(raw_user_meta_data->>'username', split_part(email, '@', 1)) 
+FROM auth.users
+ON CONFLICT (auth_user_id) DO NOTHING;
 
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
-
-GRANT EXECUTE ON FUNCTION public.is_member_of(uuid) TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION public.is_admin_of(uuid) TO authenticated, anon;
-
--- ==============================================================================
--- 8. SEED DATA
--- ==============================================================================
+-- Seed Plans
 INSERT INTO billing_plans (id, price_inr, project_limit, version_limit, ai_limit, validity_days, allow_exports, allow_designer, allow_team, ai_level)
 VALUES 
-  ('free', 0, 100, 10, 5, 0, false, false, false, 'db'),
-  ('pro', 1499, 500, 30, 100, 30, true, true, false, 'table')
-ON CONFLICT (id) DO UPDATE SET project_limit = EXCLUDED.project_limit;
-
--- End of Master Schema
+  ('free', 0, 100, 10, 5, 0, false, false, false, 'db')
+ON CONFLICT (id) DO UPDATE SET project_limit = 100;
