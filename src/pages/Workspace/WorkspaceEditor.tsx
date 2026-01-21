@@ -29,7 +29,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCollaboration } from '../../hooks/useCollaboration';
 import { PresencePanel } from '../../components/collaboration/PresencePanel';
 import { useCollaborationContext } from '../../context/CollaborationContext';
-import { useBlockOwnership } from '../../hooks/useBlockOwnership';
+// import { useBlockOwnership } from '../../hooks/useBlockOwnership';
 import { loader } from '@monaco-editor/react';
 
 // Define One Dark Pro theme for Monaco Editor
@@ -233,13 +233,13 @@ export function WorkspaceEditor() {
         }
     });
 
-    // Feature: Edit Attribution (Persistent)
-    useBlockOwnership({
-        editorRef,
-        isConnected: collaboration.isConnected,
-        blockAttributions: collaboration.blockAttributions,
-        code: currentCode
-    });
+    // Feature: Edit Attribution (Persistent) - DISABLED due to cursor interference
+    // useBlockOwnership({
+    //     editorRef,
+    //     isConnected: collaboration.isConnected,
+    //     blockAttributions: collaboration.blockAttributions,
+    //     code: currentCode
+    // });
 
     // Broadcast code changes to collaborators
     useEffect(() => {
