@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getUserColorClass } from '../../utils/userColors';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor, { DiffEditor } from '@monaco-editor/react';
@@ -241,16 +241,25 @@ export function WorkspaceEditor() {
     //     code: currentCode
     // });
 
-    // Broadcast code changes to collaborators
-    useEffect(() => {
-        if (!isRemoteUpdate && currentCode && collaboration.canEdit) {
-            // Minimal debounce for near-instant collaboration sync
-            const timer = setTimeout(() => {
-                collaboration.sendUpdate(currentCode);
-            }, 50);
-            return () => clearTimeout(timer);
+
+
+    // Memoized change handler
+    const handleEditorChange = useCallback((val: string | undefined) => {
+        if (permissions.canEdit) {
+            // Prevent echo loop: Only local changes trigger broadcast
+            if (!isRemoteUpdate) {
+                const newCode = val || '';
+                setCurrentCode(newCode);
+
+                if (collaboration.isConnected) {
+                    collaboration.sendUpdate(newCode);
+                }
+            } else {
+                // Remote update just happened - do NOT broadcast back
+                // (currentCode is already updated via onContentChange)
+            }
         }
-    }, [currentCode, isRemoteUpdate, collaboration]);
+    }, [permissions.canEdit, isRemoteUpdate, collaboration]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -337,13 +346,21 @@ export function WorkspaceEditor() {
                     const code = latestVer.code || latestVer.raw_schema || '';
                     setCurrentCode(code);
                     setLastSavedCode(code);
+                    // Explicitly update editor in uncontrolled mode
+                    if (editorRef.current) {
+                        editorRef.current.setValue(code);
+                    }
                     // Detect schema type
                     if (code.includes('model ') && code.includes('@')) {
                         setSchemaType('prisma');
                     }
                 } else {
-                    setCurrentCode(PLACEHOLDER_CODE);
+                    const emptyCode = PLACEHOLDER_CODE;
+                    setCurrentCode(emptyCode);
                     setLastSavedCode('');
+                    if (editorRef.current) {
+                        editorRef.current.setValue(emptyCode);
+                    }
                 }
 
                 // 4. Fetch History
@@ -978,17 +995,8 @@ export function WorkspaceEditor() {
                             height="100%"
                             theme="one-dark-pro"
                             language={schemaType === 'prisma' ? 'prisma' : 'sql'}
-                            value={currentCode}
-                            onChange={(val) => {
-                                if (permissions.canEdit) {
-                                    const newCode = val || '';
-                                    setCurrentCode(newCode);
-                                    // Broadcast to collaborators if not a remote update
-                                    if (!isRemoteUpdate && collaboration.isConnected) {
-                                        collaboration.sendUpdate(newCode);
-                                    }
-                                }
-                            }}
+                            defaultValue={currentCode}
+                            onChange={handleEditorChange}
                             onMount={(editor) => {
                                 editorRef.current = editor;
 
