@@ -1,5 +1,7 @@
 
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -42,6 +44,9 @@ import {
 } from './billing.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // --- PRIVATE BETA CONFIGURATION ---
 const BETA_MODE = true;
@@ -708,15 +713,8 @@ const requireProjectContext = async (req: express.Request, res: express.Response
  * Health check endpoint to verify server is running.
  * Access at: http://localhost:3001/
  */
-app.get('/', (req, res) => {
-    res.json({
-        status: 'ok',
-        message: 'Vizora Backend Server Running',
-        version: '1.0.0',
-        timestamp: new Date().toISOString(),
-        port: PORT
-    });
-});
+// Root handler removed to allow static frontend serving
+// app.get('/', (req, res) => { ... });
 
 // Favicon handler to prevent 404 errors
 app.get('/favicon.ico', (req, res) => {
@@ -2047,6 +2045,19 @@ app.use('/api/todos', todoRoutes);
 
 // Create HTTP server for Socket.IO integration
 const httpServer = createServer(app);
+
+// --- SERVE FRONTEND (SPA) ---
+const distPath = path.join(__dirname, '../dist');
+console.log(`Serving static files from: ${distPath}`);
+app.use(express.static(distPath));
+
+// Handle SPA routing: serve index.html for any non-API routes
+app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'API route not found' });
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
+});
 
 // Initialize collaboration server
 initializeCollaboration(httpServer, supabase);
