@@ -2099,13 +2099,24 @@ console.log(`Serving static files from: ${distPath}`);
 app.use(express.static(distPath));
 
 // Handle SPA routing: serve index.html for any non-API routes
-// Handle SPA routing: serve index.html for any non-API routes
 // Note: Express 5 requires (.*) instead of * for wildcard matching
-app.get(/(.*)/, (req, res) => {
+// We use a regex that matches everything BUT starts with /api (though API routes should be handled above, this is safety)
+app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) {
         return res.status(404).json({ error: 'API route not found' });
     }
-    res.sendFile(path.join(distPath, 'index.html'));
+    const indexPath = path.join(distPath, 'index.html');
+
+    // Check if file exists to prevent crashing
+    import('fs').then(fs => {
+        fs.access(indexPath, fs.constants.F_OK, (err) => {
+            if (err) {
+                console.error("[SPA] Index.html not found:", indexPath);
+                return res.status(404).send("Frontend build not found. Please check deployment logs.");
+            }
+            res.sendFile(indexPath);
+        });
+    });
 });
 
 // Initialize collaboration server
