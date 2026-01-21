@@ -132,6 +132,24 @@ export function WorkspaceEditor() {
 
     const permissions = getPermissions(userRole);
 
+    const editorOptions = useMemo(() => ({
+        readOnly: !permissions.canEdit,
+        minimap: { enabled: true, scale: 0.8 },
+        fontSize: 14,
+        fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace",
+        fontLigatures: true,
+        scrollBeyondLastLine: false,
+        smoothScrolling: true,
+        cursorBlinking: 'smooth' as const,
+        cursorSmoothCaretAnimation: 'on' as const,
+        lineHeight: 1.6,
+        padding: { top: 16, bottom: 16 },
+        renderLineHighlight: 'all' as const,
+        bracketPairColorization: { enabled: true },
+        formatOnPaste: true,
+        wordWrap: 'on' as const,
+    }), [permissions.canEdit]);
+
     // Handle highlighting from chat
     useEffect(() => {
         if (!editorRef.current || !activeHighlightRange) {
@@ -997,23 +1015,7 @@ export function WorkspaceEditor() {
                                     });
                                 });
                             }}
-                            options={useMemo(() => ({
-                                readOnly: !permissions.canEdit,
-                                minimap: { enabled: true, scale: 0.8 },
-                                fontSize: 14,
-                                fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                                fontLigatures: true,
-                                scrollBeyondLastLine: false,
-                                smoothScrolling: true,
-                                cursorBlinking: 'smooth',
-                                cursorSmoothCaretAnimation: 'on',
-                                lineHeight: 1.6,
-                                padding: { top: 16, bottom: 16 },
-                                renderLineHighlight: 'all',
-                                bracketPairColorization: { enabled: true },
-                                formatOnPaste: true,
-                                wordWrap: 'on',
-                            }), [permissions.canEdit])}
+                            options={editorOptions}
                             loading={
                                 <div className="flex items-center gap-2 text-slate-400">
                                     <div className="w-4 h-4 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 editor-loading-spinner" />
