@@ -50,7 +50,7 @@ const __dirname = path.dirname(__filename);
 
 // --- PRIVATE BETA CONFIGURATION ---
 const BETA_MODE = true;
-const BETA_PROJECT_LIMIT = 2;
+const BETA_PROJECT_LIMIT = 100;
 const BETA_VERSION_LIMIT = 4;
 const BETA_LABEL = "Private Beta";
 
@@ -96,7 +96,7 @@ try {
 
     // We can decode the JWT part to be sure
     try {
-        const payload = JSON.parse(Buffer.from(supabaseKey.split('.')[1], 'base64').toString());
+        const payload = JSON.parse(Buffer.from(supabaseKey.split('.')[1] || '', 'base64').toString());
         console.log(`[Supabase Setup] Using Key Role: ${payload.role ? payload.role.toUpperCase() : 'UNKNOWN'}`);
         if (payload.role !== 'service_role') {
             console.warn("⚠️  WARNING: Backend is NOT using SERVICE_ROLE_KEY. RLS policies will likely block writes!");
