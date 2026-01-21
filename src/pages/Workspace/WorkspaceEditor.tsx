@@ -126,12 +126,11 @@ export function WorkspaceEditor() {
     const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [projectId, setProjectId] = useState<string | null>(null); // New Project Context
     const editorRef = useRef<any>(null);
     const decorationsRef = useRef<string[]>([]);
 
     const permissions = getPermissions(userRole);
-
-
 
     // Handle highlighting from chat
     useEffect(() => {
@@ -267,6 +266,21 @@ export function WorkspaceEditor() {
                 if (wsError) throw wsError;
                 setWorkspace(ws);
 
+                // 1.5 Fetch Associated Project (Strict Hierarchy Support)
+                // We default to the first active project in this workspace
+                const { data: projects } = await supabase
+                    .from('projects')
+                    .select('id')
+                    .eq('workspace_id', workspaceId)
+                    .eq('status', 'active')
+                    .limit(1);
+
+                let activeProjectId = null;
+                if (projects && projects.length > 0) {
+                    activeProjectId = projects[0].id;
+                    setProjectId(activeProjectId);
+                }
+
                 // 2. Determine user role
                 if (ws.owner_id === user.id) {
                     setUserRole('owner');
@@ -284,10 +298,19 @@ export function WorkspaceEditor() {
                 }
 
                 // 3. Fetch Latest Version
-                const { data: latestVer } = await supabase
+                // If we have a project ID, prefer it. fallback to workspace_id query for legacy data.
+                let versionQuery = supabase
                     .from('schema_versions')
                     .select('*')
-                    .eq('workspace_id', workspaceId)
+                    .eq('workspace_id', workspaceId);
+
+                if (activeProjectId) {
+                    // If we have a project, scope to it (conceptually cleaner)
+                    // But strictly speaking, workspace_id filter is enough if they match.
+                    // We'll stick to workspace_id for broad fetch to see legacy versions too.
+                }
+
+                const { data: latestVer } = await versionQuery
                     .order('version_number', { ascending: false })
                     .limit(1)
                     .maybeSingle();
@@ -372,14 +395,15 @@ export function WorkspaceEditor() {
 
     const hasUnsavedChanges = currentCode !== lastSavedCode;
 
-    // Save Handler
-    // VERSION SAVE FLOW (MANDATORY):
-    // 1. Identify editor (currentUser becomes the author of changes in this version)
-    // 2. Compute diff blocks between old and new schema
-    // 3. Store version with snapshotted username
-    // 4. Store diff blocks with attribution
     const handleSave = async (message?: string) => {
         if (!workspaceId || !user || !permissions.canCreateVersions) return;
+
+        // Strict Check: Must have a project context
+        if (!projectId) {
+            toast.error("No active project found in this workspace. Please create a project first.");
+            return;
+        }
+
         if (currentCode === lastSavedCode) {
             toast('No changes to save');
             return;
@@ -396,6 +420,7 @@ export function WorkspaceEditor() {
 
             console.log('[WorkspaceEditor] Saving version with attribution...', {
                 workspaceId,
+                projectId,
                 nextVersion,
                 snapshotUsername,
                 hasPreviousVersion: !!previousVersion
@@ -406,6 +431,7 @@ export function WorkspaceEditor() {
                 .from('schema_versions')
                 .insert({
                     workspace_id: workspaceId,
+                    project_id: projectId, // CRITICAL FIX: ADDED PROJECT ID
                     version_number: nextVersion,
                     code: currentCode,
                     raw_schema: currentCode,
