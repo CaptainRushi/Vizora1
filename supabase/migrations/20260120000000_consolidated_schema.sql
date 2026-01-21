@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS projects (
   current_step TEXT DEFAULT 'schema',
   workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
   owner_id UUID REFERENCES auth.users(id), 
+  universal_id UUID REFERENCES universal_users(universal_id), -- Added missing column
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
