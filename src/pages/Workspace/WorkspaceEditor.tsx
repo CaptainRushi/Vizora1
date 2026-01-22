@@ -181,7 +181,7 @@ export function WorkspaceEditor() {
     // Live collaboration hook
     const collaboration = useCollaboration({
         workspaceId: workspaceId || '',
-        onContentChange: (content, userId, username, changes) => {
+        onContentChange: (content, userId, _username, changes) => {
             // Only apply if it's from another user
             if (userId !== user?.id) {
                 setIsRemoteUpdate(true);
@@ -235,7 +235,7 @@ export function WorkspaceEditor() {
     });
 
     // Handle editor mount - attach listeners
-    const handleEditorDidMount = (editor: any, monaco: any) => {
+    const handleEditorDidMount = (editor: any, _monaco: any) => {
         editorRef.current = editor;
 
         // 1. Text Changes Listener (Deltas)
