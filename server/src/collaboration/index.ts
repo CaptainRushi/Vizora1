@@ -370,44 +370,72 @@ class CollaborationServer {
             });
 
             // Handle document updates
-            socket.on('workspace:update', (data: { content: string }) => {
+            socket.on('workspace:update', (data: { content?: string; changes?: any[] }) => {
                 if (!currentUser || !currentWorkspaceId) {
-                    console.log('[Collaboration] Update rejected: no user or workspace');
                     return;
                 }
 
                 const room = this.rooms.get(currentWorkspaceId);
                 if (!room) {
-                    console.log('[Collaboration] Update rejected: room not found');
                     return;
                 }
 
-                // Check edit permission - includes 'member' role which has edit access
+                // Check edit permission
                 if (!['owner', 'admin', 'member', 'editor'].includes(currentUser.role)) {
-                    console.log(`[Collaboration] Update rejected: ${currentUser.email} has role ${currentUser.role}`);
                     socket.emit('error', { message: 'No edit permission' });
                     return;
                 }
 
-                console.log(`[Collaboration] Content update from ${currentUser.email}, broadcasting to room ${currentWorkspaceId.slice(0, 8)}...`);
+                // Handle Delta Updates (Preferred)
+                if (data.changes && Array.isArray(data.changes)) {
+                    // Update Yjs doc (Best effort sync on server)
+                    const text = room.doc.getText('code');
+                    room.doc.transact(() => {
+                        // Apply changes to Yjs doc assuming they are sequential Monaco edits
+                        // formatted as { rangeOffset, rangeLength, text }
+                        // We sort them descending by offset to apply correctly
+                        const sortedChanges = [...data.changes].sort((a, b) => {
+                            if (a.rangeOffset > b.rangeOffset) return -1;
+                            if (a.rangeOffset < b.rangeOffset) return 1;
+                            return 0;
+                        });
 
-                // Update Yjs doc
-                const text = room.doc.getText('code');
-                room.doc.transact(() => {
-                    text.delete(0, text.length);
-                    text.insert(0, data.content);
-                });
+                        sortedChanges.forEach(change => {
+                            if (change.rangeLength > 0) {
+                                text.delete(change.rangeOffset, change.rangeLength);
+                            }
+                            if (change.text) {
+                                text.insert(change.rangeOffset, change.text);
+                            }
+                        });
+                    });
 
-                room.isDirty = true;
+                    room.isDirty = true;
 
-                // Broadcast to other users
-                socket.to(currentWorkspaceId).emit('workspace:update', {
-                    content: data.content,
-                    userId: currentUser.id,
-                    username: currentUser.username || (currentUser.email.split('@')[0])
-                });
+                    // Broadcast changes to other users
+                    socket.to(currentWorkspaceId).emit('workspace:update', {
+                        changes: data.changes,
+                        userId: currentUser.id,
+                        username: currentUser.username || (currentUser.email.split('@')[0])
+                    });
 
-                console.log(`[Collaboration] Broadcast complete. Room has ${room.users.size} users.`);
+                } else if (data.content) {
+                    // Fallback: Full Content Replacement (Legacy)
+                    const text = room.doc.getText('code');
+                    room.doc.transact(() => {
+                        text.delete(0, text.length);
+                        text.insert(0, data.content!);
+                    });
+
+                    room.isDirty = true;
+
+                    // Broadcast content to other users
+                    socket.to(currentWorkspaceId).emit('workspace:update', {
+                        content: data.content,
+                        userId: currentUser.id,
+                        username: currentUser.username || (currentUser.email.split('@')[0])
+                    });
+                }
             });
 
             // Handle cursor updates

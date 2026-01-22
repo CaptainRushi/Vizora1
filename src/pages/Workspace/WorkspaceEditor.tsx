@@ -129,6 +129,7 @@ export function WorkspaceEditor() {
     const [projectId, setProjectId] = useState<string | null>(null); // New Project Context
     const editorRef = useRef<any>(null);
     const decorationsRef = useRef<string[]>([]);
+    const cursorDecorationsRef = useRef<string[]>([]);
 
     const permissions = getPermissions(userRole);
 
@@ -180,51 +181,51 @@ export function WorkspaceEditor() {
     // Live collaboration hook
     const collaboration = useCollaboration({
         workspaceId: workspaceId || '',
-        onContentChange: (content, userId, username) => {
-            console.log('[WorkspaceEditor] Content change callback:', {
-                from: username,
-                userId: userId?.slice(0, 8),
-                myId: user?.id?.slice(0, 8),
-                isMe: userId === user?.id,
-                contentLength: content?.length
-            });
+        onContentChange: (content, userId, username, changes) => {
             // Only apply if it's from another user
             if (userId !== user?.id) {
-                console.log('[WorkspaceEditor] Applying remote content update');
                 setIsRemoteUpdate(true);
-                setCurrentCode(content);
 
-                // Directly update Monaco editor model to ensure it reflects the change
-                // Preserve cursor position to avoid jumping
                 if (editorRef.current) {
                     const model = editorRef.current.getModel();
-                    if (model && model.getValue() !== content) {
-                        // Save cursor position
-                        const position = editorRef.current.getPosition();
-                        const scrollTop = editorRef.current.getScrollTop();
+                    if (!model) return;
 
-                        // Apply content using executeEdits to preserve undo stack
-                        const fullRange = model.getFullModelRange();
-                        editorRef.current.executeEdits('remote-update', [{
-                            range: fullRange,
-                            text: content,
+                    if (changes && Array.isArray(changes) && changes.length > 0) {
+                        // Apply Delta Updates (Key to preventing jitter)
+                        // Map specific changes to edits ensuring we don't mess up cursor
+                        const edits = changes.map((change: any) => ({
+                            range: change.range, // Monaco range object
+                            text: change.text,
                             forceMoveMarkers: true
-                        }]);
+                        }));
 
-                        // Restore cursor position (if valid)
-                        if (position) {
-                            const lineCount = model.getLineCount();
-                            const safePosition = {
-                                lineNumber: Math.min(position.lineNumber, lineCount),
-                                column: position.column
-                            };
-                            editorRef.current.setPosition(safePosition);
-                            editorRef.current.setScrollTop(scrollTop);
+                        // We use the 'api' source to verify later? No, just apply.
+                        // We apply edits without capturing cursor state because 
+                        // remote cursors are handled separately now.
+                        // However, we MUST ensure the LOCAL cursor stays put relative to text.
+                        // transformPosition functionality is built-in to Model behavior for many cases,
+                        // but if inserting before cursor, cursor should shift.
+                        // executeEdits handles marker movement if forceMoveMarkers is true.
+
+                        editorRef.current.executeEdits('remote-update', edits);
+
+                        // Update currentCode state to match model without triggering re-render loop
+                        setCurrentCode(model.getValue());
+                    } else if (content) {
+                        // Fallback: Full Content Replacement
+                        const fullRange = model.getFullModelRange();
+                        if (model.getValue() !== content) {
+                            editorRef.current.executeEdits('remote-update', [{
+                                range: fullRange,
+                                text: content,
+                                forceMoveMarkers: true
+                            }]);
+                            setCurrentCode(content);
                         }
                     }
                 }
 
-                setTimeout(() => setIsRemoteUpdate(false), 500);
+                setTimeout(() => setIsRemoteUpdate(false), 100);
             }
         },
         onVersionSaved: (version, savedBy) => {
@@ -233,33 +234,124 @@ export function WorkspaceEditor() {
         }
     });
 
-    // Feature: Edit Attribution (Persistent) - DISABLED due to cursor interference
-    // useBlockOwnership({
-    //     editorRef,
-    //     isConnected: collaboration.isConnected,
-    //     blockAttributions: collaboration.blockAttributions,
-    //     code: currentCode
-    // });
+    // Handle editor mount - attach listeners
+    const handleEditorDidMount = (editor: any, monaco: any) => {
+        editorRef.current = editor;
 
+        // 1. Text Changes Listener (Deltas)
+        editor.onDidChangeModelContent((e: any) => {
+            if (!isRemoteUpdate && permissions.canEdit) {
+                // Send granular changes
+                // e.changes is array of { range, rangeLength, rangeOffset, text }
+                if (e.changes.length > 0) {
+                    collaboration.sendChange(e.changes);
 
-
-    // Memoized change handler
-    const handleEditorChange = useCallback((val: string | undefined) => {
-        if (permissions.canEdit) {
-            // Prevent echo loop: Only local changes trigger broadcast
-            if (!isRemoteUpdate) {
-                const newCode = val || '';
-                setCurrentCode(newCode);
-
-                if (collaboration.isConnected) {
-                    collaboration.sendUpdate(newCode);
+                    // Also update local state
+                    setCurrentCode(editor.getValue());
                 }
-            } else {
-                // Remote update just happened - do NOT broadcast back
-                // (currentCode is already updated via onContentChange)
             }
+        });
+
+        // 2. Cursor Position Listener
+        editor.onDidChangeCursorPosition((e: any) => {
+            if (permissions.canEdit) {
+                collaboration.sendCursor(e.position, editor.getSelection());
+            }
+        });
+
+        // 3. Selection Listener (Context Tracking)
+        editor.onDidChangeCursorSelection((e: any) => {
+            const selection = e.selection;
+            if (selection.isEmpty()) {
+                setCurrentContext(null);
+                return;
+            }
+
+            // Extract simple table name if possible
+            const model = editor.getModel();
+            if (!model) return;
+            const text = model.getValueInRange(selection);
+            let table = null;
+            const tableMatch = text.match(/(?:CREATE TABLE|model)\s+([a-zA-Z0-9_]+)/i);
+            if (tableMatch) table = tableMatch[1];
+
+            setCurrentContext({
+                schema_version: versions.length > 0 ? versions[0].version_number : 1,
+                table: table || undefined,
+                line_range: [selection.startLineNumber, selection.endLineNumber]
+            });
+        });
+    };
+
+    // Render Remote Cursors
+    useEffect(() => {
+        if (!editorRef.current || !collaboration.users) return;
+
+        // Filter valid remote users with cursor positions
+        const remoteUsers = collaboration.users.filter(u => u.id !== user?.id && u.cursor);
+
+        // Generate decorations and styles
+        const newDecorations: any[] = [];
+
+        remoteUsers.forEach(u => {
+            if (!u.cursor) return;
+
+            // 1. Inject Dynamic Style for this user if missing
+            const color = u.color || '#6366f1';
+            const safeColor = color.replace('#', '');
+            const styleId = `cursor-style-${safeColor}`;
+
+            if (!document.getElementById(styleId)) {
+                const style = document.createElement('style');
+                style.id = styleId;
+                style.innerHTML = `
+                    .cursor-${safeColor} { border-left-color: ${color} !important; }
+                    .selection-${safeColor} { background-color: ${color} !important; opacity: 0.2; }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // 2. Add Cursor Decoration
+            newDecorations.push({
+                range: {
+                    startLineNumber: u.cursor.lineNumber,
+                    startColumn: u.cursor.column,
+                    endLineNumber: u.cursor.lineNumber,
+                    endColumn: u.cursor.column
+                },
+                options: {
+                    className: `remote-cursor cursor-${safeColor}`,
+                    hoverMessage: { value: `${u.username}` }
+                }
+            });
+
+            // 3. Add Selection Decoration (if exists)
+            if (u.selection && u.selection.startLineNumber) {
+                newDecorations.push({
+                    range: u.selection,
+                    options: {
+                        className: `remote-selection selection-${safeColor}`,
+                        hoverMessage: { value: `${u.username}` }
+                    }
+                });
+            }
+        });
+
+        // Apply decorations using dedicated ref
+        cursorDecorationsRef.current = editorRef.current.deltaDecorations(cursorDecorationsRef.current, newDecorations);
+
+    }, [collaboration.users]);
+
+    // Memoized change handler - purely for state sync coming from standard onChange if needed
+    // But we are handling updates in onDidChangeModelContent now.
+    // We keep this just to ensure parent state stays in sync if something else triggers it.
+    const handleEditorChange = useCallback((val: string | undefined) => {
+        // No-op for broadcasting. Broadcasting is done in onDidChangeModelContent.
+        // Just update local state if safe.
+        if (!isRemoteUpdate && val !== undefined) {
+            setCurrentCode(val);
         }
-    }, [permissions.canEdit, isRemoteUpdate, collaboration]);
+    }, [isRemoteUpdate]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -997,32 +1089,7 @@ export function WorkspaceEditor() {
                             language={schemaType === 'prisma' ? 'prisma' : 'sql'}
                             defaultValue={currentCode}
                             onChange={handleEditorChange}
-                            onMount={(editor) => {
-                                editorRef.current = editor;
-
-                                // Track selection for context
-                                editor.onDidChangeCursorSelection((e: any) => {
-                                    const selection = e.selection;
-                                    if (selection.isEmpty()) {
-                                        setCurrentContext(null);
-                                        return;
-                                    }
-
-                                    // Extract simple table name if possible
-                                    const model = editor.getModel();
-                                    if (!model) return;
-                                    const text = model.getValueInRange(selection);
-                                    let table = null;
-                                    const tableMatch = text.match(/(?:CREATE TABLE|model)\s+([a-zA-Z0-9_]+)/i);
-                                    if (tableMatch) table = tableMatch[1];
-
-                                    setCurrentContext({
-                                        schema_version: versions.length > 0 ? versions[0].version_number : 1,
-                                        table: table || undefined,
-                                        line_range: [selection.startLineNumber, selection.endLineNumber]
-                                    });
-                                });
-                            }}
+                            onMount={handleEditorDidMount}
                             options={editorOptions}
                             loading={
                                 <div className="flex items-center gap-2 text-slate-400">

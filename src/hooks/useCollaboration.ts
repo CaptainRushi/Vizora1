@@ -15,6 +15,8 @@ export interface CollaborativeUser {
     role: 'owner' | 'admin' | 'editor' | 'viewer';
     color: string;
     status: 'active' | 'idle' | 'viewing';
+    cursor?: { lineNumber: number; column: number };
+    selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
 }
 
 export interface BlockAttribution {
@@ -45,7 +47,7 @@ export interface ChatMessage {
 
 interface UseCollaborationOptions {
     workspaceId: string;
-    onContentChange?: (content: string, userId: string, username: string) => void;
+    onContentChange?: (content: string, userId: string, username: string, changes?: any[]) => void;
     onVersionSaved?: (version: number, savedBy: string) => void;
 }
 
@@ -120,11 +122,29 @@ export function useCollaboration({ workspaceId, onContentChange, onVersionSaved 
         });
 
         socket.on('workspace:update', (data: any) => {
-            onContentChangeRef.current?.(data.content, data.userId, data.username);
+            onContentChangeRef.current?.(data.content, data.userId, data.username, data.changes);
         });
 
         socket.on('workspace:presence', (data: { users: CollaborativeUser[] }) => {
             setState(prev => ({ ...prev, users: data.users }));
+        });
+
+        // Handle Real-time Cursor Updates
+        socket.on('workspace:cursor', (data: { userId: string, position: any, selection: any }) => {
+            setState(prev => {
+                const users = [...prev.users];
+                const userIndex = users.findIndex(u => u.id === data.userId);
+                if (userIndex !== -1) {
+                    // Update existing user presences
+                    users[userIndex] = {
+                        ...users[userIndex],
+                        cursor: data.position,
+                        status: 'active'
+                    };
+                    return { ...prev, users };
+                }
+                return prev;
+            });
         });
 
         socket.on('workspace:saved', (data: any) => {
@@ -180,6 +200,42 @@ export function useCollaboration({ workspaceId, onContentChange, onVersionSaved 
             socketRef.current.emit('workspace:update', { content });
         }
     }, [state.canEdit]);
+
+    const sendChange = useCallback((changes: any[]) => {
+        if (socketRef.current?.connected && state.canEdit) {
+            socketRef.current.emit('workspace:update', { changes });
+        }
+    }, [state.canEdit]);
+
+    // Debounce cursor updates to ~120ms
+    const cursorUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastCursorUpdateRef = useRef<number>(0);
+    const pendingCursorData = useRef<{ position: any; selection: any } | null>(null);
+
+    const sendCursor = useCallback((position: any, selection: any) => {
+        if (!socketRef.current?.connected) return;
+
+        const now = Date.now();
+        pendingCursorData.current = { position, selection };
+
+        if (!cursorUpdateTimeoutRef.current) {
+            // If enough time passed, send immediately, else schedule
+            if (now - lastCursorUpdateRef.current > 120) {
+                socketRef.current.emit('workspace:cursor', { position, selection });
+                lastCursorUpdateRef.current = now;
+                pendingCursorData.current = null;
+            } else {
+                cursorUpdateTimeoutRef.current = setTimeout(() => {
+                    if (pendingCursorData.current) {
+                        socketRef.current?.emit('workspace:cursor', pendingCursorData.current);
+                        lastCursorUpdateRef.current = Date.now();
+                        pendingCursorData.current = null;
+                    }
+                    cursorUpdateTimeoutRef.current = null;
+                }, 120);
+            }
+        }
+    }, []);
 
     const saveVersion = useCallback((message?: string) => {
         if (socketRef.current?.connected && state.canEdit) {
@@ -239,6 +295,8 @@ export function useCollaboration({ workspaceId, onContentChange, onVersionSaved 
         blockAttributions: memoizedBlockAttributions,
         typingUsers: memoizedTypingUsers,
         sendUpdate,
+        sendChange,
+        sendCursor,
         saveVersion,
         commitAttribution,
         sendMessage,
@@ -253,6 +311,8 @@ export function useCollaboration({ workspaceId, onContentChange, onVersionSaved 
         memoizedBlockAttributions,
         memoizedTypingUsers,
         sendUpdate,
+        sendChange,
+        sendCursor,
         saveVersion,
         commitAttribution,
         sendMessage,
