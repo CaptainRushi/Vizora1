@@ -39,21 +39,29 @@ export function Projects() {
 
     // Optimized data fetching with caching
     const fetchProjects = useCallback(async () => {
-        if (!workspaceId) return [];
+        if (!user?.id) return [];
 
-        const { data, error } = await supabase
+        // Fetch projects that belong to the current workspace
+        // OR projects explicitly owned by the user (fallback for personal/legacy projects)
+        const query = supabase
             .from('projects')
-            .select('*')
-            .eq('workspace_id', workspaceId)
-            .order('created_at', { ascending: false });
+            .select('*');
+
+        if (workspaceId) {
+            query.or(`workspace_id.eq.${workspaceId},owner_id.eq.${user.id}`);
+        } else {
+            query.eq('owner_id', user.id);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) console.error('[Projects] Fetch error:', error);
-        console.log('[Projects] Fetched:', data?.length || 0, 'projects for workspace:', workspaceId);
+        console.log('[Projects] Fetched:', data?.length || 0, 'projects for workspace/user:', workspaceId || user.id);
         return data || [];
-    }, [workspaceId]);
+    }, [workspaceId, user?.id]);
 
     const { data, loading: projectsLoading, refetch } = useOptimizedFetch<Project[]>(
-        'projects-list',
+        `projects-list-${workspaceId || user?.id}`,
         fetchProjects,
         { cacheTime: 2 * 60 * 1000 } // Cache for 2 minutes
     );
