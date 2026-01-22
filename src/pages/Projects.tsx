@@ -39,15 +39,18 @@ export function Projects() {
 
     // Optimized data fetching with caching
     const fetchProjects = useCallback(async () => {
+        if (!workspaceId) return [];
+
         const { data, error } = await supabase
             .from('projects')
             .select('*')
+            .eq('workspace_id', workspaceId)
             .order('created_at', { ascending: false });
 
         if (error) console.error('[Projects] Fetch error:', error);
-        console.log('[Projects] Fetched:', data?.length || 0, 'projects');
+        console.log('[Projects] Fetched:', data?.length || 0, 'projects for workspace:', workspaceId);
         return data || [];
-    }, []);
+    }, [workspaceId]);
 
     const { data, loading: projectsLoading, refetch } = useOptimizedFetch<Project[]>(
         'projects-list',
