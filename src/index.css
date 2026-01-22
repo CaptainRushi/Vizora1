@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -373,7 +373,7 @@
    VIZORA MOTION SYSTEM
    
    Motion Rules:
-   - Duration: 120ms – 220ms
+   - Duration: 120ms â€“ 220ms
    - Easing: ease-out or cubic-bezier(0.2, 0.8, 0.2, 1)
    - No infinite animations (except loading states)
    - Motion stops when user stops
@@ -950,17 +950,17 @@
     transition-duration: 0.01ms !important;
   }
 }
- / *   R e m o t e   C o l l a b o r a t i o n   C u r s o r s   * / 
- . r e m o t e - c u r s o r   { 
-     p o s i t i o n :   a b s o l u t e ; 
-     p o i n t e r - e v e n t s :   n o n e ; 
-     b o r d e r - l e f t :   2 p x   s o l i d ; 
-     m a r g i n - l e f t :   - 1 p x ; 
- } 
- 
- . r e m o t e - s e l e c t i o n   { 
-     p o i n t e r - e v e n t s :   n o n e ; 
-     o p a c i t y :   0 . 3 ; 
- } 
-  
- 
+
+/* Remote Collaboration Cursors */
+.remote-cursor {
+  position: absolute;
+  pointer-events: none;
+  border-left: 2px solid;
+  margin-left: -1px;
+}
+
+.remote-selection {
+  pointer-events: none;
+  opacity: 0.3;
+}
+
