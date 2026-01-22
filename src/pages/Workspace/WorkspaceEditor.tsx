@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { getUserColorClass } from '../../utils/userColors';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor, { DiffEditor } from '@monaco-editor/react';
@@ -123,13 +123,13 @@ export function WorkspaceEditor() {
     const [saveMessage, setSaveMessage] = useState('');
     const [showSaveModal, setShowSaveModal] = useState(false);
     const [schemaType, setSchemaType] = useState<'sql' | 'prisma'>('sql');
-    const [isRemoteUpdate, setIsRemoteUpdate] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [projectId, setProjectId] = useState<string | null>(null); // New Project Context
+    const [projectId, setProjectId] = useState<string | null>(null);
     const editorRef = useRef<any>(null);
     const decorationsRef = useRef<string[]>([]);
     const cursorDecorationsRef = useRef<string[]>([]);
+    const isRemoteUpdateRef = useRef(false);
 
     const permissions = getPermissions(userRole);
 
@@ -184,32 +184,24 @@ export function WorkspaceEditor() {
         onContentChange: (content, userId, _username, changes) => {
             // Only apply if it's from another user
             if (userId !== user?.id) {
-                setIsRemoteUpdate(true);
+                isRemoteUpdateRef.current = true;
 
                 if (editorRef.current) {
                     const model = editorRef.current.getModel();
-                    if (!model) return;
+                    if (!model) {
+                        isRemoteUpdateRef.current = false;
+                        return;
+                    }
 
                     if (changes && Array.isArray(changes) && changes.length > 0) {
                         // Apply Delta Updates (Key to preventing jitter)
-                        // Map specific changes to edits ensuring we don't mess up cursor
                         const edits = changes.map((change: any) => ({
-                            range: change.range, // Monaco range object
+                            range: change.range,
                             text: change.text,
                             forceMoveMarkers: true
                         }));
 
-                        // We use the 'api' source to verify later? No, just apply.
-                        // We apply edits without capturing cursor state because 
-                        // remote cursors are handled separately now.
-                        // However, we MUST ensure the LOCAL cursor stays put relative to text.
-                        // transformPosition functionality is built-in to Model behavior for many cases,
-                        // but if inserting before cursor, cursor should shift.
-                        // executeEdits handles marker movement if forceMoveMarkers is true.
-
                         editorRef.current.executeEdits('remote-update', edits);
-
-                        // Update currentCode state to match model without triggering re-render loop
                         setCurrentCode(model.getValue());
                     } else if (content) {
                         // Fallback: Full Content Replacement
@@ -225,7 +217,8 @@ export function WorkspaceEditor() {
                     }
                 }
 
-                setTimeout(() => setIsRemoteUpdate(false), 100);
+                // Reset flag immediately since executeEdits is synchronous
+                isRemoteUpdateRef.current = false;
             }
         },
         onVersionSaved: (version, savedBy) => {
@@ -234,19 +227,28 @@ export function WorkspaceEditor() {
         }
     });
 
+    const permissionsRef = useRef(permissions);
+    const collaborationRef = useRef<any>(null);
+
+    // Keep refs in sync to avoid stale closures in editor listeners
+    useEffect(() => {
+        permissionsRef.current = permissions;
+    }, [permissions]);
+
+    useEffect(() => {
+        collaborationRef.current = collaboration;
+    }, [collaboration]);
+
     // Handle editor mount - attach listeners
     const handleEditorDidMount = (editor: any, _monaco: any) => {
         editorRef.current = editor;
 
         // 1. Text Changes Listener (Deltas)
         editor.onDidChangeModelContent((e: any) => {
-            if (!isRemoteUpdate && permissions.canEdit) {
-                // Send granular changes
-                // e.changes is array of { range, rangeLength, rangeOffset, text }
+            // CRITICAL: Use Refs to avoid stale closure loops
+            if (!isRemoteUpdateRef.current && permissionsRef.current.canEdit) {
                 if (e.changes.length > 0) {
-                    collaboration.sendChange(e.changes);
-
-                    // Also update local state
+                    collaborationRef.current?.sendChange(e.changes);
                     setCurrentCode(editor.getValue());
                 }
             }
@@ -254,8 +256,8 @@ export function WorkspaceEditor() {
 
         // 2. Cursor Position Listener
         editor.onDidChangeCursorPosition((e: any) => {
-            if (permissions.canEdit) {
-                collaboration.sendCursor(e.position, editor.getSelection());
+            if (permissionsRef.current.canEdit) {
+                collaborationRef.current?.sendCursor(e.position, editor.getSelection());
             }
         });
 
@@ -342,16 +344,7 @@ export function WorkspaceEditor() {
 
     }, [collaboration.users]);
 
-    // Memoized change handler - purely for state sync coming from standard onChange if needed
-    // But we are handling updates in onDidChangeModelContent now.
-    // We keep this just to ensure parent state stays in sync if something else triggers it.
-    const handleEditorChange = useCallback((val: string | undefined) => {
-        // No-op for broadcasting. Broadcasting is done in onDidChangeModelContent.
-        // Just update local state if safe.
-        if (!isRemoteUpdate && val !== undefined) {
-            setCurrentCode(val);
-        }
-    }, [isRemoteUpdate]);
+
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -1088,7 +1081,6 @@ export function WorkspaceEditor() {
                             theme="one-dark-pro"
                             language={schemaType === 'prisma' ? 'prisma' : 'sql'}
                             defaultValue={currentCode}
-                            onChange={handleEditorChange}
                             onMount={handleEditorDidMount}
                             options={editorOptions}
                             loading={
