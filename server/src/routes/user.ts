@@ -88,7 +88,7 @@ router.get('/me', async (req, res) => {
             }
         }
 
-        // 3. Fetch Full Context (Universal User + Workspace)
+        // 3. Fetch Full Context (Universal User + Workspace + Role)
         const { data: userContext, error: contextError } = await supabase
             .from('universal_users')
             .select(`
@@ -96,7 +96,8 @@ router.get('/me', async (req, res) => {
                 username,
                 display_name,
                 email,
-                universal_workspaces!inner ( name )
+                universal_workspaces!inner ( name ),
+                users:auth_user_id ( role )
             `)
             .eq('universal_id', universalId)
             .maybeSingle();
@@ -111,7 +112,7 @@ router.get('/me', async (req, res) => {
                 email: email,
                 workspace_name: "Personal Workspace",
                 has_completed_profile: false,
-                role: 'admin',
+                role: 'member', // Default to member in fallback
                 workspace_id: universalId
             });
         }
@@ -119,6 +120,17 @@ router.get('/me', async (req, res) => {
         const workspaceName = Array.isArray(userContext.universal_workspaces)
             ? userContext.universal_workspaces[0]?.name
             : (userContext.universal_workspaces as any)?.name;
+
+        const isOwner = userContext.universal_id === universalId; // In this endpoint, universalId is resolved from auth userId
+
+        const role = Array.isArray((userContext as any).users)
+            ? (userContext as any).users[0]?.role
+            : (userContext as any).users?.role;
+
+        let finalRole = role || 'member';
+        if (isOwner) {
+            finalRole = 'admin';
+        }
 
         const hasProfile = !!(userContext.username && userContext.display_name);
 
@@ -129,8 +141,8 @@ router.get('/me', async (req, res) => {
             email: userContext.email,
             workspace_name: workspaceName || "Personal Workspace",
             has_completed_profile: hasProfile,
-            // Backward Compatibility
-            role: 'admin',
+            // Force admin if owner of this universal context
+            role: finalRole,
             workspace_id: userContext.universal_id
         });
 

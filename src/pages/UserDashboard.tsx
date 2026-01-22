@@ -80,15 +80,7 @@ interface TeamData {
     members: TeamMember[];
 }
 
-interface ActivityItem {
-    id: string;
-    actor: { id: string; name: string; role: string };
-    action_type: string;
-    description: string;
-    entity: { type: string; name: string };
-    metadata: Record<string, any>;
-    timestamp: string;
-}
+
 
 interface Invite {
     id: string;
@@ -177,7 +169,7 @@ export function UserDashboard() {
                     created_at: new Date().toISOString(),
                     member_count: 1 // Will be updated by fetchTeamData if we fetch it
                 },
-                role: (identityData.role as 'admin' | 'member') || 'admin'
+                role: (identityData.role as 'admin' | 'member') || 'member'
             });
 
             // 3. Fetch specific dashboard data using Universal ID

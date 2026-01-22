@@ -219,16 +219,26 @@ router.get('/team', async (req, res) => {
             };
         });
 
-        // Add Owner if not present
+        // Add Owner if not present explicitly in membership
         if (uUser) {
             const ownerInList = memberList.find(m => m.user_id === uUser.auth_user_id);
             if (!ownerInList) {
+                // Fetch member role if they exist but were missed or not found in query (rare)
+                const { data: ownerMember } = await supabase
+                    .from('workspace_members')
+                    .select('role')
+                    .eq('workspace_id', workspaceId)
+                    .eq('user_id', uUser.auth_user_id)
+                    .maybeSingle();
+
                 memberList.unshift({
                     id: 'owner',
                     user_id: uUser.auth_user_id,
                     username: uUser.username,
                     display_name: uUser.display_name,
-                    role: 'admin',
+                    // Refinement: Default to member if not explicitly admin, even for owner 
+                    // (Matching user's desire for explicit roles)
+                    role: (ownerMember?.role as any) || 'member',
                     joined_at: null,
                     is_owner: true
                 });

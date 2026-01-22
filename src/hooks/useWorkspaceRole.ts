@@ -111,29 +111,20 @@ export function useWorkspaceRole(options: UseWorkspaceRoleOptions = {}): UseWork
                 .eq('universal_id', activeWorkspaceId)
                 .maybeSingle();
 
-            if (uUser && uUser.auth_user_id === user.id) {
-                setRole('admin');
-                setIsOwner(true);
-                setLoading(false);
-                return;
-            }
+            const isUniversalOwner = uUser && uUser.auth_user_id === user.id;
 
             // 2. Legacy / Shared Ownership Check
-            // Use maybeSingle to avoid 406 if workspace doesn't exist in old table
             const { data: workspace } = await supabase
                 .from('workspaces')
                 .select('owner_id')
                 .eq('id', activeWorkspaceId)
                 .maybeSingle();
 
-            if (workspace?.owner_id === user.id) {
-                setRole('admin');
-                setIsOwner(true);
-                setLoading(false);
-                return;
-            }
+            const isLegacyOwner = workspace?.owner_id === user.id;
+            const currentIsOwner = !!(isUniversalOwner || isLegacyOwner);
+            setIsOwner(currentIsOwner);
 
-            // 3. Check Workspace Membership (Shared Access)
+            // 3. Check Workspace Membership for actual operational role
             const { data: membership } = await supabase
                 .from('workspace_members')
                 .select('role')
@@ -141,13 +132,14 @@ export function useWorkspaceRole(options: UseWorkspaceRoleOptions = {}): UseWork
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-            const memberRole = membership?.role;
-            if (memberRole === 'admin') {
+            if (currentIsOwner) {
+                // Owners are always admins of their own space
                 setRole('admin');
+            } else if (membership) {
+                setRole(membership.role as WorkspaceRole);
             } else {
                 setRole('member');
             }
-            setIsOwner(false);
 
         } catch (err: any) {
             console.error('[useWorkspaceRole] Error fetching role:', err);

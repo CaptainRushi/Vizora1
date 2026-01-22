@@ -307,8 +307,29 @@ export function WorkspaceEditor() {
                 const style = document.createElement('style');
                 style.id = styleId;
                 style.innerHTML = `
-                    .cursor-${safeColor} { border-left-color: ${color} !important; }
-                    .selection-${safeColor} { background-color: ${color} !important; opacity: 0.2; }
+                    .cursor-${safeColor} { 
+                        border-left-color: ${color} !important; 
+                    }
+                    .cursor-label-${safeColor}::after {
+                        content: "${u.username}";
+                        position: absolute;
+                        top: -16px;
+                        left: -2px;
+                        background: ${color};
+                        color: white;
+                        font-size: 10px;
+                        font-weight: bold;
+                        padding: 1px 6px;
+                        border-radius: 4px 4px 4px 0;
+                        white-space: nowrap;
+                        pointer-events: none;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        z-index: 100;
+                    }
+                    .selection-${safeColor} { 
+                        background-color: ${color} !important; 
+                        opacity: 0.15; 
+                    }
                 `;
                 document.head.appendChild(style);
             }
@@ -322,7 +343,7 @@ export function WorkspaceEditor() {
                     endColumn: u.cursor.column
                 },
                 options: {
-                    className: `remote-cursor cursor-${safeColor}`,
+                    className: `remote-cursor cursor-${safeColor} cursor-label-${safeColor}`,
                     hoverMessage: { value: `${u.username}` }
                 }
             });

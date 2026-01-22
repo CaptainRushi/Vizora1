@@ -124,27 +124,38 @@ class CollaborationServer {
     }
 
     private async getUserRole(userId: string, workspaceId: string): Promise<'owner' | 'admin' | 'member' | 'editor' | 'viewer'> {
-        // Check if owner
+        // 1. Check Universal Ownership
+        const { data: uUser } = await this.supabase
+            .from('universal_users')
+            .select('auth_user_id')
+            .eq('universal_id', workspaceId)
+            .maybeSingle();
+
+        if (uUser && uUser.auth_user_id === userId) {
+            return 'owner';
+        }
+
+        // 2. Legacy Ownership Check
         const { data: workspace } = await this.supabase
             .from('workspaces')
             .select('owner_id')
             .eq('id', workspaceId)
-            .single();
+            .maybeSingle();
 
         if (workspace?.owner_id === userId) {
             return 'owner';
         }
 
-        // Check membership
+        // 3. Check Workspace Membership (Shared Access)
         const { data: member } = await this.supabase
             .from('workspace_members')
             .select('role')
             .eq('workspace_id', workspaceId)
             .eq('user_id', userId)
-            .single();
+            .maybeSingle();
 
         // Database uses 'admin' and 'member' roles, handle both 'member' and legacy 'editor'
-        return (member?.role as 'admin' | 'member' | 'editor' | 'viewer') || 'viewer';
+        return (member?.role as any) || 'viewer';
     }
 
     private async getOrCreateRoom(workspaceId: string): Promise<WorkspaceRoom> {
@@ -394,7 +405,7 @@ class CollaborationServer {
                         // Apply changes to Yjs doc assuming they are sequential Monaco edits
                         // formatted as { rangeOffset, rangeLength, text }
                         // We sort them descending by offset to apply correctly
-                        const sortedChanges = [...data.changes].sort((a, b) => {
+                        const sortedChanges = [...(data.changes as any[])].sort((a, b) => {
                             if (a.rangeOffset > b.rangeOffset) return -1;
                             if (a.rangeOffset < b.rangeOffset) return 1;
                             return 0;

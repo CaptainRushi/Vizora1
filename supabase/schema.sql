@@ -465,14 +465,20 @@ BEGIN
     VALUES ('Personal Workspace', 'personal', NEW.id)
     RETURNING id INTO new_workspace_id;
 
-    INSERT INTO public.users (id, email, username, display_name, workspace_id)
+    INSERT INTO public.users (id, email, username, display_name, workspace_id, role)
     VALUES (
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
         NEW.raw_user_meta_data->>'full_name',
-        new_workspace_id
-    ) ON CONFLICT (id) DO UPDATE SET workspace_id = new_workspace_id;
+        new_workspace_id,
+        'admin'
+    ) ON CONFLICT (id) DO UPDATE SET workspace_id = new_workspace_id, role = 'admin';
+
+    -- Explicitly add to workspace_members for consistency
+    INSERT INTO public.workspace_members (workspace_id, user_id, role)
+    VALUES (new_workspace_id, NEW.id, 'admin')
+    ON CONFLICT (workspace_id, user_id) DO NOTHING;
 
     RETURN NEW;
 END;
